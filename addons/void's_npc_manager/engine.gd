@@ -350,13 +350,14 @@ func _count_files(path):
 	return count
 
 ## gets an NPC's data and returns it as well as its directory
-func get_npc(npc_id: String):
+func get_npc(npc_id: String) -> Array:
 	var target = "NPC_%s.tres" %npc_id
 	var dir = npc_path + target
+	var npc
 	if not FileAccess.file_exists(dir):
 		push_error("NPC file not found")
-		return null
-	var npc = ResourceLoader.load(dir)
+	else:
+		npc = ResourceLoader.load(dir)
 	
 	return [npc,dir]
 

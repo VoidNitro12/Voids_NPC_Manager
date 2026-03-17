@@ -16,22 +16,27 @@ var _dialogue_pool_event = {}
 
 var _dialogue_pool_character = {}
 
-func add_dialogue_event(event_type: String, lines: Array):
-	var valid_type = NpcEngine.custom_event_types.has(event_type)
-	assert(valid_type, "No such event type %s. see NpcEngine.add_event_type() to make one" %event_type)
-	_dialogue_pool_event[event_type] = lines
-
-func dialogue_event_format(event_type: String, line: String) -> String:
+# formats a given line by swapping key strings with their information counterparts.
+# all dialouge event templates should have keys such as {npc1}. corresponding to the event type
+# where {npc1} is a valid field in the provided event_type that will also contain a string if filled. 
+func _dialogue_event_format(event_type: String, line: String) -> String:
 	var event= NpcEngine._custom_event_types[event_type]
 	for key in event:
-		var formatted_key = "{%s}" %key
-		if line.contains(formatted_key):
-			line = line.replace(formatted_key,event[key])
+		var formated_key = "{%s}" %key
+		if line.contains(formated_key):
+			line = line.replace(formated_key,event[key])
 	return line
 
+# formats a given line by swapping key strings with their information counterparts.
+# all dialouge char templates should have  key [code]{rel_type}[/code] explicitly, so that the manager can swap it out
+# for the actual relationship type
+func _dialogue_char_format(sel_char_type: String, line: String) -> String:
+	var formated_char = "{rel_type}" 
+	if line.contains(formated_char):
+		line = line.replace(formated_char,sel_char_type)
+	return line
 
-
-func apply_mood(npc: Dictionary) -> Dictionary:
+func apply_mood(npc: Resource) -> Resource:
 	var traits = ["friendliness", "expressiveness", "patience", "curiosity"]
 	for value in traits:
 		var base = npc[value]
@@ -55,7 +60,7 @@ func _vibe_band(value: float, range: String) -> bool:
 		result = true
 	return result
 
-func _vibe_map(npc: Dictionary):
+func _vibe_map(npc: Resource):
 	var vibe
 	var f = npc.friendliness
 	var e = npc.expressiveness
@@ -94,7 +99,7 @@ func query_event(event_id: String, npc: Dictionary, vibe) -> Array:
 		pool = _dialogue_pool_event["UNAWARE"][vibe]
 	return [pool,event.type]
 	
-func query_char(target_id: String, npc: Dictionary, vibe) -> Array:
+func query_char(target_id: String, npc: Resource, vibe) -> Array:
 	var data = NpcEngine.get_npc(target_id)
 	var target = data[0]
 	var pool
@@ -105,7 +110,12 @@ func query_char(target_id: String, npc: Dictionary, vibe) -> Array:
 		pool = _dialogue_pool_character["UNAWARE"][vibe]
 	return [pool,sel_char]
 
-func talk_to_npc(npc: Dictionary, id: String, event_based: bool = false, char_based: bool = false):
+## Core dialouge mechanic. passing this will initiate one round of conversation with an npc.
+## Meaning if more than one exchange is needed this should be called in an appropriate loop.
+## takes the npc resource and an event/npc id. an event id if the converation is abount an event, also 
+## [code]event_based[/code] should be set to [code]true[/code]. and an npc id if the converation is abount another npc, also 
+## [code]char_based[/code] should be set to [code]true[/code]
+func talk_to_npc(npc: Resource, id: String, event_based: bool = false, char_based: bool = false):
 	var pool
 	var data
 	var current_npc = apply_mood(npc)
@@ -120,8 +130,8 @@ func talk_to_npc(npc: Dictionary, id: String, event_based: bool = false, char_ba
 	var choice = pool[choice_index]
 	if event_based:
 		var type = data[1]
-		choice = dialogue_event_format(type, choice)
-	if char_based:
-		var type = data[1]
-		# I REALLY NEED TO RETHINK RELATIONSHIPS
+		choice = _dialogue_event_format(type, choice)
+	elif char_based:
+		var sel_char_type = data[1]
+		choice = _dialogue_char_format(sel_char_type, choice)
 	return choice
