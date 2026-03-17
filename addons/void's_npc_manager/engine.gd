@@ -4,8 +4,8 @@ extends Node
 ## Main script for the NPC manager
 
 var Dialogue : Node 
-var npc_path = "res://addons/void_npc_engine/NPCs/"
-var event_path = "res://addons/void_npc_engine/Events/"
+var npc_path = "res://addons/void's_npc_manager/NPCs/"
+var event_path = "res://addons/void's_npc_manager/Events/"
 
 func _ready() -> void:
 	Dialogue = preload("res://addons/void's_npc_manager/dialogue.gd").new()
@@ -46,7 +46,7 @@ func set_player_name(name: String):
 
 ## Update the players events lists
 func update_player_events(event_type: String, event_id: String):
-	assert(event_type == "direct_event" or event_type == "indirect_event", "Invalid event type. Must be 'direct_event' or 'indirect_event'")
+	assert(event_type == "direct_events" or event_type == "indirect_events", "Invalid event type. Must be 'direct_events' or 'indirect_events'")
 	player_data[event_type].append(event_id)
 
 ## Returns the number of Events in use. 
@@ -294,7 +294,10 @@ func update_npc_relationship(npc: String, target: String, value: float, type: St
 			"memories": shared_memories, 
 		}
 		
-		sel_npc.relationship["player"] = update
+		sel_npc.relationships["player"] = update
+	
+	var dir = npc_path + "NPC_%s.tres" % sel_npc.npc_id
+	ResourceSaver.save(sel_npc, dir)
 
 ## To add custom relationship types for NPCs. Accepts a string for [code]type[/code]. which is used as the name of the type.
 func add_relationship_type(type: String):
@@ -311,11 +314,11 @@ func set_time_format(use_24hr = true):
 ##Make sure to set preffered format with [method set_time_format] else it will use a 24hr format
 func update_game_time(hour: int, minute: int, meridian: String = "AM"):
 	if game_time["24hr"] == true:
-		game_time["hour"] = hour
-		game_time["minute"] = minute
-	else:
-		game_time["hour"] = format_24hr(hour,meridian)
-		game_time["minute"] = minute
+		game_time["hours"] = hour
+		game_time["minutes"] = minute
+	elif hour > 12 or hour == 0:
+		game_time["hours"] = hour
+		game_time["minutes"] = minute
 		game_time["meridian"] = meridian
 
 ## Convert 24hr to 12hr
@@ -350,13 +353,14 @@ func _count_files(path):
 	return count
 
 ## gets an NPC's data and returns it as well as its directory
-func get_npc(npc_id: String):
+func get_npc(npc_id: String) -> Array:
 	var target = "NPC_%s.tres" %npc_id
 	var dir = npc_path + target
+	var npc
 	if not FileAccess.file_exists(dir):
 		push_error("NPC file not found")
-		return null
-	var npc = ResourceLoader.load(dir)
+	else:
+		npc = ResourceLoader.load(dir)
 	
 	return [npc,dir]
 
