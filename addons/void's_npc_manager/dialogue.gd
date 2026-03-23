@@ -21,12 +21,19 @@ var _dialogue_pool_character = {}
 # formats a given line by swapping key strings with their information counterparts.
 # all dialouge event templates should have keys such as {npc1}. corresponding to the event type
 # where {npc1} is a valid field in the provided event_type that will also contain a string if filled. 
-func _dialogue_event_format(event_type: String, line: String) -> String:
-	var event= NpcEngine._custom_event_types[event_type]
-	for key in event:
+func _dialogue_event_format(event: Resource, line: String) -> String:
+	var all_fields = {
+		"name": event.event_name,
+		"where": event.where,
+		"time": event.time,
+		"date": event.date,
+		"day": event.day,
+		}
+	all_fields.merge(event.custom)
+	for key in all_fields:
 		var formated_key = "{%s}" %key
 		if line.contains(formated_key):
-			line = line.replace(formated_key,event[key])
+			line = line.replace(formated_key,all_fields[key])
 	return line
 
 # formats a given line by swapping key strings with their information counterparts.
@@ -99,7 +106,7 @@ func query_event(event_id: String, npc: Resource, vibe) -> Array:
 		pool = _dialogue_pool_event[event.type]["indirect"][vibe]
 	else:
 		pool = _dialogue_pool_event["UNAWARE"][vibe]
-	return [pool,event.type]
+	return [pool,event]
 	
 func query_char(target_id: String, npc: Resource, vibe) -> Array:
 	var data = NpcEngine.get_npc(target_id)
@@ -134,8 +141,8 @@ func talk_to_npc(npc: Resource, id: String, event_based: bool = false, char_base
 	if event_based:
 		var type = data[1]
 		choice = _dialogue_event_format(type, choice)
-	elif char_based:
-		var sel_char_type = data[1]
-		if sel_char_type != null:
-			choice = _dialogue_char_format(sel_char_type, choice)
+	#elif char_based:
+		#var sel_char_type = data[1]
+		#if sel_char_type != null:
+			#pass
 	return choice
