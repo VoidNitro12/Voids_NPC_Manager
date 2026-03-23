@@ -1,15 +1,20 @@
 @tool
+class_name NpcManager
 extends Node
-## Void's NPC Engine (WIP)
+## Void's NPC Manager (WIP)
 ## Main script for the NPC manager
 
-var Dialogue : Node 
+var _dialogue : Node 
+
+## Path where all NPC's will be stored. see [method set_npc_saves] to change it.
 var npc_path = "res://addons/void's_npc_manager/NPCs/"
+
+## Path where all Events's will be stored. see [method set_event_saves] to change it.
 var event_path = "res://addons/void's_npc_manager/Events/"
 
 func _ready() -> void:
-	Dialogue = preload("res://addons/void's_npc_manager/dialogue.gd").new()
-	add_child(Dialogue)
+	_dialogue = preload("res://addons/void's_npc_manager/dialogue.gd").new()
+	add_child(_dialogue)
 
 #Events fields that are not needed for the plugin to work and are customisable
 var _custom_event_fields = []
@@ -42,7 +47,7 @@ var player_data = {
 
 ## Set the players name in npc data
 func set_player_name(name: String):
-	player_data["name"] = name
+	player_data["player_name"] = name
 
 ## Update the players events lists
 func update_player_events(event_type: String, event_id: String):
@@ -317,7 +322,7 @@ func update_game_time(hour: int, minute: int, meridian: String = "AM"):
 		game_time["hours"] = hour
 		game_time["minutes"] = minute
 	elif hour > 12 or hour == 0:
-		game_time["hours"] = hour
+		game_time["hours"] = format_24hr(hour, meridian)
 		game_time["minutes"] = minute
 		game_time["meridian"] = meridian
 
@@ -389,13 +394,13 @@ func generate_dialogue_event_template(file_name:String, path: String):
 	var template = {}
 	for type in _custom_event_types:
 		template[type] = {"direct":{}, "indirect":{}}
-		for descriptor_name in Dialogue.descriptor.keys() :
+		for descriptor_name in _dialogue.descriptor.keys() :
 			template[type]["direct"][descriptor_name] = []
 			template[type]["indirect"][descriptor_name] = []
 	template["UNAWARE"] = {}
-	for descriptor_name in Dialogue.descriptor.keys() :
+	for descriptor_name in _dialogue.descriptor.keys() :
 		template["UNAWARE"][descriptor_name] = []
-		template["UNAWARE"][descriptor_name] = []
+
 	var file = FileAccess.open(save_path, FileAccess.WRITE)
 	file.store_string(JSON.stringify(template, "\t"))
 	file.close()
@@ -415,11 +420,11 @@ func generate_dialogue_character_template(file_name:String, path: String):
 	var template = {}
 	for type in _custom_relationship_types:
 		template[type] = {}
-		for descriptor_name in Dialogue.descriptor.keys() :
+		for descriptor_name in _dialogue.descriptor.keys() :
 			template[type][descriptor_name] = []
 			template[type][descriptor_name] = []
 	template["UNAWARE"] = {}
-	for descriptor_name in Dialogue.descriptor.keys() :
+	for descriptor_name in _dialogue.descriptor.keys() :
 		template["UNAWARE"][descriptor_name] = []
 		template["UNAWARE"][descriptor_name] = []
 	var file = FileAccess.open(save_path, FileAccess.WRITE)
@@ -445,6 +450,37 @@ func _load_json(path: String) -> Dictionary:
 		return {}
 	return parsed
 
+## Accepts a json file for dialouge in a specifice format to utilize in dialogue.
+## see [method generate_dialogue_character_template] and [method generate_dialogue_event_template]
+## for an automated json file pertaining to dialogue
 func load_dialogue_pools(event_pool_path: String, character_pool_path: String):
-	Dialogue._dialogue_pool_event = _load_json(event_pool_path)
-	Dialogue._dialogue_pool_character = _load_json(character_pool_path)
+	_dialogue._dialogue_pool_event = _load_json(event_pool_path)
+	_dialogue._dialogue_pool_character = _load_json(character_pool_path)
+
+## set the file path NPC's data should be stored in. Must be an absolute path
+## see [method set_event_saves] to set event save path
+func set_npc_saves(path: String):
+	if not path.is_absolute_path():
+		push_error("path must be an absolute path")
+		return
+	if not FileAccess.file_exists(path):
+		push_error("File not found: " + path)
+		return
+	if event_path == path:
+		push_error("Event and NPC save paths cannot be the same")
+		return
+	npc_path = path
+
+## set the file path Event data should be stored in. Must be an absolute path
+## see [method set_npc_saves] to set NPC save path
+func set_event_saves(path: String):
+	if not path.is_absolute_path():
+		push_error("path must be an absolute path")
+		return
+	if not FileAccess.file_exists(path):
+		push_error("File not found: " + path)
+		return
+	if npc_path == path:
+		push_error("Event and NPC save paths cannot be the same")
+		return
+	event_path = path
