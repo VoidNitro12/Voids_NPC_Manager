@@ -12,9 +12,18 @@ var npc_path = "res://addons/void's_npc_manager/NPCs/"
 ## Path where all Events's will be stored. see [method set_event_saves] to change it.
 var event_path = "res://addons/void's_npc_manager/Events/"
 
+## Path where data such as custom fields, player data and time are stored.
+## see [method set_data_saves] to change it
+var plugin_data_path: String = "res://addons/void's_npc_manager/plugin_data.tres"
+
+## Set to [code]false[/code] to disable automatic loading of stored plugindata at runtime (_ready)
+var load_PluginData_on_runtime = true
+
 func _ready() -> void:
 	_dialogue = preload("res://addons/void's_npc_manager/dialogue.gd").new()
 	add_child(_dialogue)
+	if load_PluginData_on_runtime:
+		load_plugin_data()
 
 #Events fields that are not needed for the plugin to work and are customisable
 var _custom_event_fields = []
@@ -28,8 +37,20 @@ var _custom_event_types = {}
 # For storing custom relationship types 
 var _custom_relationship_types = []
 
-## Time for the NPC manager to utilize. Allways in 24hr format.
-##[br] see [method set_time_format] to set the format the plugin will export and accept time in
+# For storing all current npc id's
+var _npc_ids = []
+
+# For storing all current event id's
+var _event_ids = []
+
+# Keeps track of all npcs ever made for id generation purposes
+var _npc_counter = 0
+
+# Keeps track of all event ever made for id generation purposes
+var _event_counter = 0
+
+## Time for the NPC manager to utilize. Always in 24hr format.
+## [br] see [method set_time_format] to set the format the plugin will export and accept time in
 var game_time = {
 	"hours": 0,
 	"minutes": 0,
@@ -56,12 +77,12 @@ func update_player_events(event_type: String, event_id: String):
 
 ## Returns the number of Events in use. 
 func num_events() -> int:
-	var num = _count_files(event_path)
+	var num = _event_ids.size()
 	return num
 
 ## Returns the number of NPCs in use. 
 func num_npc() -> int:
-	var num = _count_files(npc_path)
+	var num = _npc_ids.size()
 	return num
 
 ## Add a field to be used in events. [code]field[/code] is the name of your entry
@@ -86,8 +107,8 @@ func remove_npc_field(field: String):
 func see_custom_event_fields() -> Array:
 	return _custom_event_fields
 
-## Returns a list of all current custom NPC fields and their types
-func see_custom_npc_field() -> Array:
+## Returns a list of all current custom NPC fields 
+func see_custom_npc_fields() -> Array:
 	return _custom_npc_fields
 
 ## Adds an event type for use in making and handling events. accepts a string for [code]type[/code]. which is used as the name of the type.
@@ -103,7 +124,7 @@ func add_event_type(type: String, type_values: Array):
 		type_val[type_value] = "None"
 	_custom_event_types[type] = type_val
 
-## Add an event to memory. accepts dictionariess.
+## Add an event to memory. accepts a dictionary.
 ##[codeblock]
 ##var event_info = {
 ##	"name": "An event",
@@ -122,11 +143,10 @@ func add_event_type(type: String, type_values: Array):
 ## Under witness, its refering to npcs that directly witnessed the even and those that should know of it indirectly, its respective subentries should contain NPC ids.
 ## If added individual NPC's data will be updated automaticaly.
 ## Any existing custom fields should be included. [br]
-## Set [code]involve_player[/code] to [code]true[/code] to add this events to the players data, set [code]player_type[/code] to "direct_witness" or "indirect_witness" if so
+## Set [code]involve_player[/code] to [code]true[/code] to add this events to the players data, set [code]player_type[/code] to "direct_event" or "event" if so
 func add_event(event_info: Dictionary, event_type_info: Array, involve_player : bool = false , player_type : String = "none"):
 	
-	var num_ids = _count_files(event_path)
-	num_ids += 1
+	var num_ids = _event_counter + 1
 	var event_id =  str(num_ids)
 	
 	if involve_player:
@@ -138,6 +158,9 @@ func add_event(event_info: Dictionary, event_type_info: Array, involve_player : 
 	var file_name = "Event_%s.tres" %event_id 
 	var save_path = event_path + file_name
 	ResourceSaver.save(event,save_path)
+	_event_ids.append(event_id)
+	_event_counter += 1
+	save_plugin_data()
 
 	for witness in event_info.direct_witness:
 		var aquired = get_npc(witness)
@@ -176,65 +199,78 @@ func add_event(event_info: Dictionary, event_type_info: Array, involve_player : 
 ##[/codeblock]
 ##[code]"friendliness"[/code] is a float of range [code]0.0[/code] to [code]1.0[/code] on how nice the NPC is. [br]
 ##[code]"mood"[/code] is a float of range [code]-1.0[/code] to [code]1.0[/code] on the current mood of the NPC that affects all other values. [br]
-##[code]"patience"[/code] is a float of range [code]0.0[/code] to [code]1.0[/code] on how wiling the NPC is to talk and for how long. [br]
+##[code]"patience"[/code] is a float of range [code]0.0[/code] to [code]1.0[/code] on how willing the NPC is to talk and for how long. [br]
 ##[code]"expressiveness"[/code] is a float of range [code]0.0[/code] to [code]1.0[/code] on how much the NPC tells things. [br]
-##[code]"curiosity"[/code] is a float of range [code]0.0[/code] to [code]1.0[/code] on how much the NPC will inquire obout things from others. [br]
+##[code]"curiosity"[/code] is a float of range [code]0.0[/code] to [code]1.0[/code] on how much the NPC will inquire about things from others. [br]
 ##[code]"personality_range"[/code] is a float of range [code]1.0[/code] to [code]3.0[/code] on how much the NPCs mood can affect other sliders. [br]
 ##[br]
 ## Newly made NPcs by default have no relationships.
 ## For relationships see [method update_npc_relationship]. which should only be run after the npc has already been made to edit or create relationships with the player or other NPCs
 func add_npc(npc_info: Dictionary):
 	
-	var num_ids = _count_files(npc_path)
-	num_ids += 1
+	var num_ids = _npc_counter + 1
 	var npc_id =  str(num_ids)
 	var npc = NpcData.new()
 	npc.create(npc_info,npc_id)
 	var file_name = "NPC_%s.tres" %npc_id 
 	var save_path = npc_path + file_name
 	ResourceSaver.save(npc,save_path)
+	_npc_ids.append(npc_id)
+	_npc_counter += 1
+	save_plugin_data()
+
+## Deletes an NPC permanently
+func remove_npc(npc_id: String):
+	var path = npc_path + "NPC_%s.tres" % npc_id
+	if ResourceLoader.exists(path):
+		DirAccess.remove_absolute(path)
+		_npc_ids.erase(npc_id)
+		save_plugin_data()
+	else:
+		push_error("NPC not found: %s" % npc_id)
+
+## Deletes an Event permanently
+func remove_event(event_id: String):
+	var path = event_path + "Event_%s.tres" % event_id
+	if ResourceLoader.exists(path):
+		DirAccess.remove_absolute(path)
+		_event_ids.erase(event_id)
+		save_plugin_data()
+	else:
+		push_error("Event not found: %s" % event_id)
 
 ## Returns a dictionary with all npcs containing the same name and their ids.
 ## If looking for a single NPCs id by name. see [method get_npc_by_name]
 func get_all_npc_by_name(target: String) -> Dictionary:
 	var results = {}
-	var dir = DirAccess.open(npc_path)
-	if dir:
-		dir.include_navigational = false
-		dir.list_dir_begin()
-		var file_name = dir.get_next()
-		while file_name != "":
-			var npc = ResourceLoader.load(npc_path + file_name)
-			if npc.npc_name != target:
-				file_name = dir.get_next()
-			else:
-				results[npc.npc_id] = npc
-				file_name = dir.get_next()
-		if results.is_empty():
-			push_error("No NPC found with the name: %s" %target)
-		dir.list_dir_end()
+	for id in _npc_ids:
+		var file_name = "NPC_%s.tres"%id
+		var npc = ResourceLoader.load(npc_path + file_name)
+		if npc == null:
+			push_warning("Could not load file NPC_%s.tres"%id)
+			continue
+		if npc.npc_name == target:
+			results[npc.npc_id] = npc
+	if results.is_empty():
+		push_error("No NPC found with the name: %s" %target)
 	return results
 
-## returns an NPCs id from its name. Returns the first found NPC with said name
+## returns an NPCs Resource from its name. Returns the first found NPC with said name
 ## If looking for a dictonary with all NPCs possessing the same name and their respective ids. see [method get_all_npc_by_name]
 ## If no NPC with this name is found, will return [code]null[/code]
 func get_npc_by_name(target: String)  -> Resource: 
-	var dir = DirAccess.open(npc_path)
-	var found_npc = null
-	if dir:
-		dir.include_navigational = false
-		dir.list_dir_begin()
-		var file_name = dir.get_next()
-		while file_name != "":
-			var npc = ResourceLoader.load(npc_path + file_name)
-			if npc.npc_name != target:
-				file_name = dir.get_next()
-			else:
-				found_npc = npc
-				break
-		if found_npc == null:
-			push_error("No NPC found with the name: %s" %target)
-		dir.list_dir_end()
+	var found_npc
+	for id in _npc_ids:
+		var file_name = "NPC_%s.tres"%id
+		var npc = ResourceLoader.load(npc_path + file_name)
+		if npc == null:
+			push_warning("Could not load file NPC_%s.tres"%id)
+			continue
+		if npc.npc_name == target:
+			found_npc = npc
+			break
+	if found_npc == null:
+		push_error("No NPC found with the name: %s" % target)
 	return found_npc
 
 # Checks if a given input is a valid id or name of an NPC and if true, Returns their id
@@ -248,13 +284,12 @@ func _check_for_npc(id) -> Resource:
 		assert(npc != null, "No NPC found. must input a valid NPC id or name as a string")
 	return npc
 
-##Updates an NPCs relationship data using the desired NPCs name or id, and which NPC to edit their relationship
+## Updates an NPCs relationship data using the desired NPCs name or id, and which NPC to edit their relationship
 ## [code]npc[/code] is the NPC whos relationship you wish to update, and [code]target[/code] is the NPC
 ## that you want to change [code]npc[/code]'s relationship with[br]
-## If you want to edit an NPCs relationship withh the player, set [code]target = "player"[/code]. 
-## [code]event_type_info[/code] accepts a list. This list should contain info relevant to the type of event, see [method add_relationship_type]. [br]
+## If you want to edit an NPCs relationship with the player, set [code]target = "player"[/code]. 
 ## Accepts both id's or names
-func update_npc_relationship(npc: String, target: String, value: float, type: String, rel_type_info: Array):
+func update_npc_relationship(npc: String, target: String, value: float, type: String,):
 	var sel_npc = _check_for_npc(npc)
 	var sel_target
 	var sel_npc_events = sel_npc.direct_events 
@@ -342,45 +377,29 @@ func format_24hr(hour: int, meridian: String) -> int:
 		hour = 12
 	return hour
 
-#Counts the total number of files in a folder
-func _count_files(path):
-	var dir = DirAccess.open(path)
-	var count = 0
-	if dir:
-		dir.include_navigational = false
-		dir.list_dir_begin()
-		var file_name = dir.get_next()
-		while file_name != "":
-			if dir.current_is_dir() == false :
-				count += 1
-			file_name = dir.get_next()
-		dir.list_dir_end()
-	return count
-
-## gets an NPC's data and returns it as well as its directory
+## gets an NPC's Resource and returns an array of said resource and the NPC's directory.
 func get_npc(npc_id: String) -> Array:
 	var target = "NPC_%s.tres" %npc_id
 	var dir = npc_path + target
 	var npc
-	if not FileAccess.file_exists(dir):
-		push_error("NPC file not found")
+	if not ResourceLoader.exists(dir):
+		push_warning("NPC file not found")
 	else:
 		npc = ResourceLoader.load(dir)
 	
 	return [npc,dir]
 
-## gets an Event's data and returns it as well as its directory
-func get_event(event_id: String):
+## gets an Events's Resource and returns an array of said resource and the Event's directory.
+func get_event(event_id: String) -> Array:
 	var target = "Event_%s.tres" %event_id
 	var dir = event_path + target
-	if not FileAccess.file_exists(dir):
+	if not ResourceLoader.exists(dir):
 		push_error("Event file not found")
-		return null
 	var event = ResourceLoader.load(dir)
 	
 	return [event,dir]
 
-## Generates a json file based on all the registerd event types for easier dialogue writing.
+## Generates a json file based on all the registered event types for easier dialogue writing.
 ## Deals with dialogue pertaining to events.
 func generate_dialogue_event_template(file_name:String, path: String):
 	if path.is_absolute_path() == false :
@@ -406,7 +425,7 @@ func generate_dialogue_event_template(file_name:String, path: String):
 	file.close()
 	print("Dialogue template generated at: ", save_path)
 
-## generates a json file based on all the registerd event types for easier dialogue writing
+## generates a json file based on all the registered event types for easier dialogue writing
 ## Deals with dialogue pertaining to NPC's or the player.
 func generate_dialogue_character_template(file_name:String, path: String):
 	if path.is_absolute_path() == false :
@@ -436,7 +455,7 @@ func generate_dialogue_character_template(file_name:String, path: String):
 	print("Character template generated at: ", save_path)
 
 func _load_json(path: String) -> Dictionary:
-	if not FileAccess.file_exists(path):
+	if not ResourceLoader.exists(path):
 		push_error("File not found: " + path)
 		return {}
 	var file = FileAccess.open(path, FileAccess.READ)
@@ -450,7 +469,7 @@ func _load_json(path: String) -> Dictionary:
 		return {}
 	return parsed
 
-## Accepts a json file for dialouge in a specifice format to utilize in dialogue.
+## Accepts a json file for dialogue in a specific format to utilize in dialogue.
 ## see [method generate_dialogue_character_template] and [method generate_dialogue_event_template]
 ## for an automated json file pertaining to dialogue
 func load_dialogue_pools(event_pool_path: String, character_pool_path: String):
@@ -463,11 +482,14 @@ func set_npc_saves(path: String):
 	if not path.is_absolute_path():
 		push_error("path must be an absolute path")
 		return
-	if not FileAccess.file_exists(path):
+	if not ResourceLoader.exists(path):
 		push_error("File not found: " + path)
 		return
 	if event_path == path:
 		push_error("Event and NPC save paths cannot be the same")
+		return
+	if plugin_data_path == path:
+		push_error("Cannot be the same with plugin_data_path")
 		return
 	npc_path = path
 
@@ -477,10 +499,74 @@ func set_event_saves(path: String):
 	if not path.is_absolute_path():
 		push_error("path must be an absolute path")
 		return
-	if not FileAccess.file_exists(path):
+	if not ResourceLoader.exists(path):
 		push_error("File not found: " + path)
 		return
 	if npc_path == path:
 		push_error("Event and NPC save paths cannot be the same")
 		return
+	if plugin_data_path == path:
+		push_error("Cannot be the same with plugin_data_path")
+		return
 	event_path = path
+	
+## set the file path general data should be stored in. Include custom fields, player data etc.
+## Must be an absolute path. expects a full path with a file name i.e not a folder
+func set_data_saves(path: String):
+	if not path.is_absolute_path():
+		push_error("path must be an absolute path")
+		return
+	if not path.ends_with(".tres"):
+		push_error("Path must be a .tres file")
+		return
+	if npc_path == path:
+		push_error("Cannot be the same with NPC path")
+		return
+	if event_path == path:
+		push_error("Cannot be the same with Event path")
+		return
+	plugin_data_path = path
+
+## saves relevant plugin information to plugin_data_path. see [method set_data_saves] to change the path.
+## is normally called after [method add_npc] and [method add_event]. 
+## Though it is still advised to call periodically regardless to not lose data
+func save_plugin_data():
+	var data = PluginData.new()
+	var save_data = {
+		"game_time": game_time,
+		"player_data":player_data,
+		"_custom_event_fields": _custom_event_fields,
+		"_custom_event_types": _custom_event_types,
+		"_custom_npc_fields": _custom_npc_fields,
+		"_custom_relationship_types": _custom_relationship_types,
+		"npc_ids": _npc_ids,
+		"event_ids": _event_ids,
+		"npc_counter": _npc_counter,
+		"event_counter": _event_counter,
+		"npc_path": npc_path,
+		"event_path": event_path,
+		"plugin_data_path": plugin_data_path
+	}
+	data.store(save_data)
+	ResourceSaver.save(data,plugin_data_path)
+
+## Loads any stored data in [member plugin_data_path].
+## is automatically called at runtime if [member load_PluginData_on_runtime] is [code]true[/code]
+func load_plugin_data(): 
+	if not ResourceLoader.exists(plugin_data_path):
+		push_warning("No savedata file found at %s" %plugin_data_path)
+		return
+	var data = ResourceLoader.load(plugin_data_path)
+	game_time = data.game_time
+	player_data = data.player_data
+	_custom_event_fields = data._custom_event_fields
+	_custom_event_types = data._custom_event_types
+	_custom_npc_fields = data._custom_npc_fields
+	_custom_relationship_types = data._custom_relationship_types
+	_npc_ids = data.npc_ids
+	_event_ids = data.event_ids
+	_npc_counter = data.npc_counter
+	_event_counter = data.event_counter
+	npc_path = data.npc_path
+	event_path = data.event_path
+	plugin_data_path = data.plugin_data_path

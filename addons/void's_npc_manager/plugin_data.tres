@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="PluginData" load_steps=2 format=3 uid="uid://c12pivefup4lb"]
+
+[ext_resource type="Script" uid="uid://b4ptcuagt2rsm" path="res://addons/void's_npc_manager/PluginData.gd" id="1_2lfb0"]
+
+[resource]
+script = ExtResource("1_2lfb0")
+plugin_data_path = "res://addons/void's_npc_manager/plugin_data.tres"
+_custom_event_fields = ["importance"]
+_custom_npc_fields = ["faction", "home_town"]
+_custom_event_types = {
+"celebration": {
+"organizer": "None",
+"reason": "None"
+},
+"fight": {
+"cause": "None",
+"fighter1": "None",
+"fighter2": "None"
+}
+}
+_custom_relationship_types = ["friend", "rival", "family"]
+npc_ids = ["1", "2"]
+event_ids = ["1", "2"]
+event_counter = 2
