@@ -17,24 +17,31 @@ var event_path = "res://addons/voids_npc_manager/Events/"
 var plugin_data_path: String = "res://addons/voids_npc_manager/plugin_data.tres"
 
 ## Set to [code]false[/code] to disable automatic loading of stored plugindata at runtime (_ready)
-var load_PluginData_on_runtime = true
+var load_PluginData_on_runtime: bool = true
 
+## The number of default templates to serve as a scaffolding for dialogue structures. Will generate none if set to 0, though the manager expects a 
+## certain format for pools, so that is unadvised. 
+var default_pool_on_generation: int = 1
 
-func _ready() -> void:
-	if load_PluginData_on_runtime:
-		load_plugin_data()
+## During generation of dialogue template jsons. tags are fields where each response leads too. this dictates how many tags should exists
+var chat_tag_fields: int = 1
 
-#Events fields that are not needed for the plugin to work and are customisable
-var _custom_event_fields = []
+## A map of conditions that will be used for parsing any conditional dialogue choice. see [method register_dialogue_condition] to add
+var dialogue_conditions = {}
 
-#NPC fields that are not needed for the plugin to work and are customisable
-var _custom_npc_fields = []
+#Events fields that the plugin will utilize
+var _event_fields = []
 
-# For storing custom event types 
-var _custom_event_types = {}
+#NPC fields that the plugin will utilize
+var _npc_fields = []
 
-# For storing custom relationship types 
-var _custom_relationship_types = []
+# For storing event types 
+var _event_types = {
+	"default_convo": {}
+}
+
+# For storing relationship types 
+var _relationship_types = []
 
 # For storing all current npc id's
 var _npc_ids = []
@@ -65,6 +72,11 @@ var player_data = {
 		"indirect_events": []
 }
 
+func _ready() -> void:
+	if load_PluginData_on_runtime:
+		load_plugin_data()
+	_register_default_event()
+
 ## Set the players name in npc data
 func set_player_name(name: String):
 	player_data["player_name"] = name
@@ -87,28 +99,28 @@ func num_npc() -> int:
 ## Add a field to be used in events. [code]field[/code] is the name of your entry
 ## eg making all events's contain an extra field "important"
 func add_event_field(field: String):
-	_custom_event_fields.append(field)
+	_event_fields.append(field)
 
 ## Deletes a custom event field. 
 func remove_event_field(field: String):
-	_custom_event_fields.erase(field)
+	_event_fields.erase(field)
 
 ## Add a field to be used for NPCs. [code]field[/code] is the name of your entry
 ## eg making all NPC's contain an extra field "job"
 func add_npc_field(field: String):
-	_custom_npc_fields.append(field)
+	_npc_fields.append(field)
 
 ## Deletes a custom NPC field. 
 func remove_npc_field(field: String):
-	_custom_npc_fields.erase(field)
+	_npc_fields.erase(field)
 
 ## Returns a list of all current custom event fields 
-func see_custom_event_fields() -> Array:
-	return _custom_event_fields
+func see_event_fields() -> Array:
+	return _event_fields
 
 ## Returns a list of all current custom NPC fields 
-func see_custom_npc_fields() -> Array:
-	return _custom_npc_fields
+func see_npc_fields() -> Array:
+	return _npc_fields
 
 ## Adds an event type for use in making and handling events. accepts a string for [code]type[/code]. which is used as the name of the type.
 ## [code]type_values[/code] accepts a list of values that this type will contain.
@@ -121,7 +133,7 @@ func add_event_type(type: String, type_values: Array):
 	var type_val = {}
 	for type_value in type_values:
 		type_val[type_value] = "None"
-	_custom_event_types[type] = type_val
+	_event_types[type] = type_val
 
 ## Add an event to memory. accepts a dictionary.
 ##[codeblock]
@@ -291,13 +303,13 @@ func _check_for_npc(id) -> Resource:
 ## [code]npc[/code] is the NPC whos relationship you wish to update, and [code]target[/code] is the NPC
 ## that you want to change [code]npc[/code]'s relationship with[br]
 ## If you want to edit an NPCs relationship with the player, set [code]target = "player"[/code]. 
-## Accepts both id's or names
+## Accepts either id's or names
 func update_npc_relationship(npc: String, target: String, value: float, type: String,):
 	var sel_npc = _check_for_npc(npc)
 	var sel_target
 	var sel_npc_events = sel_npc.direct_events 
 	
-	if type not in _custom_relationship_types:
+	if type not in _relationship_types:
 		push_error("Type: %s is not a valid custom type. see add_relationship_type" %type)
 	
 	if target != "player":
@@ -344,7 +356,7 @@ func update_npc_relationship(npc: String, target: String, value: float, type: St
 
 ## To add custom relationship types for NPCs. Accepts a string for [code]type[/code]. which is used as the name of the type.
 func add_relationship_type(type: String):
-	_custom_relationship_types.append(type)
+	_relationship_types.append(type)
 
 ## sets the format used to display time stored. Can be in 24hr or 12hr format. 
 ## [code]true[/code] for 24hr and [code]false[/code] for 12hr.
@@ -380,7 +392,7 @@ func format_24hr(hour: int, meridian: String) -> int:
 		hour = 12
 	return hour
 
-## gets an NPC's Resource and returns an array of said resource and the NPC's directory.
+## gets an NPC's Resource from its id and returns an array of said resource and the NPC's directory.
 func get_npc(npc_id: String) -> Array:
 	var target = "NPC_%s.tres" %npc_id
 	var dir = npc_path + target
@@ -392,12 +404,14 @@ func get_npc(npc_id: String) -> Array:
 	
 	return [npc,dir]
 
-## gets an Events's Resource and returns an array of said resource and the Event's directory.
+## gets an Events's Resource from its id and returns an array of said resource and the Event's directory.
 func get_event(event_id: String) -> Array:
 	var target = "Event_%s.tres" %event_id
 	var dir = event_path + target
-	if not ResourceLoader.exists(dir):
+	if not ResourceLoader.exists(dir) and event_id != "0":
 		push_error("Event file not found")
+	elif not ResourceLoader.exists(dir) and event_id == "0":
+		_register_default_event()
 	var event = ResourceLoader.load(dir)
 	
 	return [event,dir]
@@ -415,24 +429,73 @@ func generate_dialogue_event_template(file_name:String, path: String):
 		path += "/"
 	var save_path = path + file_name
 	var template = {}
-	for type in _custom_event_types:
+	var default_style = {"line": "None", "responses": []}
+	var response_style = {"text": "None", "condition": "None", "effect": "None", "tag": "None"}
+	for type in _event_types:
 		template[type] = {"direct":{}, "indirect":{}}
 		for descriptor_name in NpcDialogue.descriptor.keys() :
-			template[type]["direct"][descriptor_name] = []
-			template[type]["indirect"][descriptor_name] = []
+			template[type]["direct"][descriptor_name] = {}
+			var direct_target = template[type]["direct"][descriptor_name] 
+			
+			direct_target["Reactive"] = {"greetings": []}
+			direct_target["Proactive"] = {"greetings": []}
+			for num in range(default_pool_on_generation):
+				var line = default_style.duplicate(true)
+				line["responses"] = [response_style.duplicate(true)]
+				direct_target["Reactive"]["greetings"].append(line)
+				
+				var line2 = default_style.duplicate(true)
+				line2["responses"] = [response_style.duplicate(true)]
+				direct_target["Proactive"]["greetings"].append(line2)
+			
+			template[type]["indirect"][descriptor_name] = {}
+			var indirect_target = template[type]["indirect"][descriptor_name] 
+			
+			indirect_target["Reactive"] = {"greetings": []}
+			indirect_target["Proactive"] = {"greetings": []}
+			for num in range(default_pool_on_generation):
+				var line = default_style.duplicate(true)
+				line["responses"] = [response_style.duplicate(true)]
+				indirect_target["Reactive"]["greetings"].append(line)
+				
+				var line2 = default_style.duplicate(true)
+				line2["responses"] = [response_style.duplicate(true)]
+				indirect_target["Proactive"]["greetings"].append(line2)
+			
 	template["UNAWARE"] = {}
 	for descriptor_name in NpcDialogue.descriptor.keys() :
-		template["UNAWARE"][descriptor_name] = []
-
+		template["UNAWARE"][descriptor_name] = {}
+		var unaware = template["UNAWARE"][descriptor_name] 
+		
+		unaware["Reactive"] = {"greetings": []}
+		unaware["Proactive"] = {"greetings": []}
+		for num in range(default_pool_on_generation):
+				var line = default_style.duplicate(true)
+				line["responses"] = [response_style.duplicate(true)]
+				unaware["Reactive"]["greetings"].append(line)
+				
+				var line2 = default_style.duplicate(true)
+				line2["responses"] = [response_style.duplicate(true)]
+				unaware["Proactive"]["greetings"].append(line2)
+		
+		template["UNAWARE"][descriptor_name]["Chat"] = {}
+		for val in chat_tag_fields:
+			var tag = str(val)
+			template["UNAWARE"][descriptor_name]["Chat"][tag] = []
+			for num in range(default_pool_on_generation):
+				template["UNAWARE"][descriptor_name]["Chat"][tag].append(default_style)
+	
 	var file = FileAccess.open(save_path, FileAccess.WRITE)
 	file.store_string(JSON.stringify(template, "\t"))
 	file.close()
-	print("_dialogue template generated at: ", save_path)
+	print("Event dialogue template generated at: ", save_path)
+	
 
 ## generates a json file based on all the registered event types for easier dialogue writing
 ## Deals with dialogue pertaining to NPC's or the player.
 ## Expects a folder path in [code]path[/code] and a file name in [code]file_name[/code]
 func generate_dialogue_character_template(file_name:String, path: String):
+	# Currently outdated while building
 	if path.is_absolute_path() == false :
 		push_error("Provided Path must be an absolute path")
 		return
@@ -442,22 +505,54 @@ func generate_dialogue_character_template(file_name:String, path: String):
 		path += "/"
 	var save_path = path + file_name
 	var template = {}
-	for type in _custom_relationship_types:
+	var default_style = {"line": "None", "responses": [{"text": "None", "condition": "None", "effect": "None", "tag": "None"}]}
+	for type in _relationship_types:
 		template[type] = {}
 		for descriptor_name in NpcDialogue.descriptor.keys() :
-			template[type][descriptor_name] = []
-			template[type][descriptor_name] = []
+			template[type][descriptor_name] = {}
+			template[type][descriptor_name]["Reactive"] = {}
+			template[type][descriptor_name]["Reactive"]["greetings"] = []
+			for num in default_pool_on_generation:
+				template[type][descriptor_name]["Reactive"]["greetings"].append(default_style)
+			
+			template[type][descriptor_name]["Proactive"] = {}
+			template[type][descriptor_name]["Proactive"]["greetings"] = []
+			for num in default_pool_on_generation:
+				template[type][descriptor_name]["Proactive"]["greetings"].append(default_style)
+			
+			template[type][descriptor_name]["Chat"] = {}
+			for val in chat_tag_fields:
+				var tag = str(val)
+				template[type][descriptor_name]["Chat"][tag] = []
+				for num in default_pool_on_generation:
+					template[type][descriptor_name]["Chat"][tag].append(default_style)
+			
 	template["UNAWARE"] = {}
 	for descriptor_name in NpcDialogue.descriptor.keys() :
-		template["UNAWARE"][descriptor_name] = []
-		template["UNAWARE"][descriptor_name] = []
+		template["UNAWARE"][descriptor_name] = {}
+		template["UNAWARE"][descriptor_name]["Reactive"] = {}
+		template["UNAWARE"][descriptor_name]["Reactive"]["greetings"] = []
+		for num in default_pool_on_generation:
+			template["UNAWARE"][descriptor_name]["Reactive"]["greetings"].append(default_style)
+		
+		template["UNAWARE"][descriptor_name]["Proactive"] = {}
+		template["UNAWARE"][descriptor_name]["Proactive"]["greetings"] = []
+		for num in default_pool_on_generation:
+			template["UNAWARE"][descriptor_name]["Proactive"]["greetings"].append(default_style)
+		
+		template["UNAWARE"][descriptor_name]["Chat"] = {}
+		for val in chat_tag_fields:
+			var tag = str(val)
+			template["UNAWARE"][descriptor_name]["Chat"][tag] = []
+			for num in default_pool_on_generation:
+				template["UNAWARE"][descriptor_name]["Chat"][tag].append(default_style)
 	var file = FileAccess.open(save_path, FileAccess.WRITE)
 	if file == null:
 		push_error("Failed to write file")
 		return
 	file.store_string(JSON.stringify(template, "\t"))
 	file.close()
-	print("Character template generated at: ", save_path)
+	print("Character Dialogue template generated at: ", save_path)
 
 func _load_json(path: String) -> Dictionary:
 	if not ResourceLoader.exists(path):
@@ -480,6 +575,7 @@ func _load_json(path: String) -> Dictionary:
 func load_dialogue_pools(event_pool_path: String, character_pool_path: String):
 	NpcDialogue._dialogue_pool_event = _load_json(event_pool_path)
 	NpcDialogue._dialogue_pool_character = _load_json(character_pool_path)
+
 ## set the file path NPC's data should be stored in. Must be an absolute path
 ## see [method set_event_saves] to set event save path
 func set_npc_saves(path: String):
@@ -492,6 +588,9 @@ func set_npc_saves(path: String):
 	if plugin_data_path == path:
 		push_error("Cannot be the same with plugin_data_path")
 		return
+	var dir = DirAccess.open(path)
+	if not dir.dir_exists(path):
+		DirAccess.make_dir_absolute(path)
 	npc_path = path
 
 ## set the file path Event data should be stored in. Must be an absolute path
@@ -506,13 +605,16 @@ func set_event_saves(path: String):
 	if plugin_data_path == path:
 		push_error("Cannot be the same with plugin_data_path")
 		return
+	var dir = DirAccess.open(path)
+	if not dir.dir_exists(path):
+		DirAccess.make_dir_absolute(path)
 	event_path = path
 	
 ## set the file path general data should be stored in. Include custom fields, player data etc.
 ## Must be an absolute path. expects a folder path in [code]path[/code] and a file name in [code]file_name[/code]
 func set_data_saves(file_name: String,path: String):
 	if not file_name.ends_with(".tres"):
-		file_name += ".tress"
+		file_name += ".tres"
 	if not path.ends_with("/"):
 		path += "/"
 	var save_path = path + file_name
@@ -526,6 +628,7 @@ func set_data_saves(file_name: String,path: String):
 		push_error("Cannot be the same with Event path")
 		return
 	plugin_data_path = save_path
+	save_plugin_data()
 
 ## saves relevant plugin information to plugin_data_path. see [method set_data_saves] to change the path.
 ## is automatically called after [method add_npc] and [method add_event]. 
@@ -535,10 +638,10 @@ func save_plugin_data():
 	var save_data = {
 		"game_time": game_time,
 		"player_data":player_data,
-		"_custom_event_fields": _custom_event_fields,
-		"_custom_event_types": _custom_event_types,
-		"_custom_npc_fields": _custom_npc_fields,
-		"_custom_relationship_types": _custom_relationship_types,
+		"_event_fields": _event_fields,
+		"_event_types": _event_types,
+		"_npc_fields": _npc_fields,
+		"_relationship_types": _relationship_types,
 		"npc_ids": _npc_ids,
 		"event_ids": _event_ids,
 		"npc_counter": _npc_counter,
@@ -559,10 +662,10 @@ func load_plugin_data():
 	var data = ResourceLoader.load(plugin_data_path)
 	game_time = data.game_time
 	player_data = data.player_data
-	_custom_event_fields = data._custom_event_fields
-	_custom_event_types = data._custom_event_types
-	_custom_npc_fields = data._custom_npc_fields
-	_custom_relationship_types = data._custom_relationship_types
+	_event_fields = data._event_fields
+	_event_types = data._event_types
+	_npc_fields = data._npc_fields
+	_relationship_types = data._relationship_types
 	_npc_ids = data.npc_ids
 	_event_ids = data.event_ids
 	_npc_counter = data.npc_counter
@@ -570,3 +673,35 @@ func load_plugin_data():
 	npc_path = data.npc_path
 	event_path = data.event_path
 	plugin_data_path = data.plugin_data_path
+
+## Used to add a condition and its respective function to [member dialogue_conditions]
+## a funtion needs to exist to run the check, for example
+##[codeblock]
+##	NpcEngine.register_dialogue_condition("is_friendly", _check_friendly)
+##	func _check_friendly(npc):
+##		return friendliness > 0.5
+##[/codeblock]
+## all functions used in this dict should accept an NPC resorce argument
+func register_dialogue_condition(condition_text: String, callable:  Callable): 
+	dialogue_conditions[condition_text] = callable
+
+## Creates a default event to serve in place for generic conversations when theres no event or character as a topic
+func _register_default_event(): 
+	var type_info = []
+	var event_id = "0"
+	var event_info ={
+	"name": "Starter",
+	"type": "default_convo",
+	"description": "Just used for non specific conversations",
+	"time": "00:00",
+	"date": "1st",
+	"day": "Sunday",
+	"where": "Game",
+	"direct_witness": [],
+	"indirect_witness": []
+	}
+	var event = EventData.new()
+	event.create(event_info,event_id)
+	var file_name = "Event_%s.tres" %event_id 
+	var save_path = event_path + file_name
+	ResourceSaver.save(event,save_path)

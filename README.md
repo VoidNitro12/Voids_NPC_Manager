@@ -48,25 +48,25 @@ func setup_NpcManager():
     NpcManager.generate_dialogue_event_template("event_dialogue", "res://Game_manager/")
 ```
 
-Notes
+###Notes
 
-· Save paths are folders (except set_data_saves which takes a folder + filename)
-· Folders are not auto-created—ensure they exist or create them in code
-· Custom fields become accessible via npc.custom["field_name"]
-· Generated JSON templates provide a starting point for dialogue writing
+- Save paths are folders (except set_data_saves which takes a folder + filename)
+- Folders are not auto-created—ensure they exist or create them in code
+- Custom fields become accessible via npc.custom["field_name"]
+- Generated JSON templates provide a starting point for dialogue writing
 
 
 
 ## Dialogue
-For dialogue writing, you must write lines as templates. After generating the dialogue JSON files for character and event-related dialogue, it is strongly advised to use formatted sequences where the manager should fill in information.
+For dialogue writing, you should write lines as templates. After generating the dialogue JSON files for character and event-related dialogue, use formatted placeholders where possible and the manager should fill in information.
 
 Example with Events
 
 When creating an event, the manager requires an event type and expects certain fields to be provided for that type. For example, an event with type = "fight" might include fields like:
 
-· fighter1
-· fighter2
-· cause
+- fighter1
+- fighter2
+- cause
 
 When writing dialogue for a fight event, you can include a placeholder in your template:
 

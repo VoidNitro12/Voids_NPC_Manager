@@ -2,7 +2,7 @@
 class_name EventData
 extends Resource
 
-var custom_fields = NpcManager._custom_event_fields
+var custom_fields = NpcManager._event_fields
 var custom = {}
 
 @export var event_id: String = ""
