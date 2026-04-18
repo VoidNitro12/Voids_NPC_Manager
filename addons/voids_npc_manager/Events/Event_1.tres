@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="EventData" load_steps=4 format=3]
+
+[ext_resource type="Resource" path="res://addons/voids_npc_manager/NPCs/NPC_1.tres" id="1_ntjjo"]
+[ext_resource type="Resource" path="res://addons/voids_npc_manager/NPCs/NPC_2.tres" id="2_yhmjd"]
+[ext_resource type="Script" path="res://addons/voids_npc_manager/EventData.gd" id="3_xccde"]
+
+[resource]
+script = ExtResource("3_xccde")
+event_id = "1"
+event_name = "Market Brawl"
+type = "fight"
+description = "A fight broke out between two merchants"
+time = "14:30"
+date = "15th"
+day = "Tuesday"
+where = "market_square"
+direct_witness = [ExtResource("1_ntjjo"), "0"]
+indirect_witness = [ExtResource("2_yhmjd")]

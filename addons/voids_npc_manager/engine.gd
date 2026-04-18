@@ -17,7 +17,7 @@ var event_path = "res://addons/voids_npc_manager/Events/"
 var plugin_data_path: String = "res://addons/voids_npc_manager/plugin_data.tres"
 
 ## Set to [code]false[/code] to disable automatic loading of stored plugindata at runtime (_ready)
-var load_PluginData_on_runtime: bool = true
+var load_pluginData_on_runtime: bool = true
 
 ## The number of default templates to serve as a scaffolding for dialogue structures. Will generate none if set to 0, though the manager expects a 
 ## certain format for pools, so that is unadvised. 
@@ -73,7 +73,7 @@ var player_data = {
 }
 
 func _ready() -> void:
-	if load_PluginData_on_runtime:
+	if load_pluginData_on_runtime:
 		load_plugin_data()
 	_register_default_event()
 
@@ -82,6 +82,7 @@ func set_player_name(name: String):
 	player_data["player_name"] = name
 
 ## Update the players events lists
+## [code]event_type[/code] should be = "direct_events" or "indirect_events"
 func update_player_events(event_type: String, event_id: String):
 	assert(event_type == "direct_events" or event_type == "indirect_events", "Invalid event type. Must be 'direct_events' or 'indirect_events'")
 	player_data[event_type].append(event_id)
@@ -115,11 +116,11 @@ func remove_npc_field(field: String):
 	_npc_fields.erase(field)
 
 ## Returns a list of all current custom event fields 
-func see_event_fields() -> Array:
+func get_event_fields() -> Array:
 	return _event_fields
 
 ## Returns a list of all current custom NPC fields 
-func see_npc_fields() -> Array:
+func get_npc_fields() -> Array:
 	return _npc_fields
 
 ## Adds an event type for use in making and handling events. accepts a string for [code]type[/code]. which is used as the name of the type.
@@ -148,13 +149,13 @@ func add_event_type(type: String, type_values: Array):
 ##	"direct_witness": ["23","32"],
 ##	"indirect_witness": ["2","45","56","78"]
 ##	}
-##	add_event(new_event)
+##	add_event(event_info)
 ##[/codeblock]
 ## [code]event_type_info[/code] accepts a list. this list should contain info relevant to the type of event. see [method add_event_type]. [br]
 ## Under witness, its refering to npcs that directly witnessed the even and those that should know of it indirectly, its respective subentries should contain NPC ids.
 ## If added individual NPC's data will be updated automaticaly.
 ## Any existing custom fields should be included. [br]
-## Set [code]involve_player[/code] to [code]true[/code] to add this events to the players data, set [code]player_type[/code] to "direct_event" or "event" if so
+## Set [code]involve_player[/code] to [code]true[/code] to add this events to the players data, set [code]player_type[/code] to "direct_events" or "indirect_events" if so
 func add_event(event_info: Dictionary, event_type_info: Array, involve_player : bool = false , player_type : String = "none"):
 	
 	var num_ids = _event_counter + 1
@@ -171,12 +172,10 @@ func add_event(event_info: Dictionary, event_type_info: Array, involve_player : 
 	ResourceSaver.save(event,save_path)
 	_event_ids.append(event_id)
 	_event_counter += 1
-	save_plugin_data()
 
 	for witness in event_info.direct_witness:
-		var aquired = get_npc(witness)
-		var npc = aquired[0]
-		var dir = aquired[1]
+		var npc = get_npc(witness)
+		var dir = "NPC_%s.tres"%npc.npc_id
 		if npc == null:
 			push_warning("NPC id %s in direct witness' doesnt exist", witness)
 		else:
@@ -184,9 +183,8 @@ func add_event(event_info: Dictionary, event_type_info: Array, involve_player : 
 			ResourceSaver.save(npc,dir)
 	
 	for witness in event_info.indirect_witness:
-		var aquired = get_npc(witness)
-		var npc = aquired[0]
-		var dir = aquired[1]
+		var npc = get_npc(witness)
+		var dir = "NPC_%s.tres"%npc.npc_id
 		if npc == null:
 			push_warning("NPC id %s in indirect witness' doesnt exist", witness)
 		else:
@@ -207,6 +205,7 @@ func add_event(event_info: Dictionary, event_type_info: Array, involve_player : 
 ##	"direct_events": [],
 ##	"indirect_events": [],
 ##	}
+## add_npc(new_npc)
 ##[/codeblock]
 ##[code]"friendliness"[/code] is a float of range [code]0.0[/code] to [code]1.0[/code] on how nice the NPC is. [br]
 ##[code]"mood"[/code] is a float of range [code]-1.0[/code] to [code]1.0[/code] on the current mood of the NPC that affects all other values. [br]
@@ -228,7 +227,6 @@ func add_npc(npc_info: Dictionary):
 	ResourceSaver.save(npc,save_path)
 	_npc_ids.append(npc_id)
 	_npc_counter += 1
-	save_plugin_data()
 
 ## Deletes an NPC permanently. [br]
 ## Note that NPC ids are not reassignable, deleting an NPC with an id "1"
@@ -292,8 +290,7 @@ func get_npc_by_name(target: String)  -> Resource:
 func _check_for_npc(id) -> Resource:
 	var npc
 	if id.is_valid_int():
-		var list = get_npc(id)
-		npc = list[0]
+		npc = get_npc(id)
 	else:
 		npc = get_npc_by_name(id)
 		assert(npc != null, "No NPC found. must input a valid NPC id or name as a string")
@@ -302,6 +299,7 @@ func _check_for_npc(id) -> Resource:
 ## Updates an NPCs relationship data using the desired NPCs name or id, and which NPC to edit their relationship
 ## [code]npc[/code] is the NPC whos relationship you wish to update, and [code]target[/code] is the NPC
 ## that you want to change [code]npc[/code]'s relationship with[br]
+## [code]value[/code] is the value you want to replace the current relationship value with.
 ## If you want to edit an NPCs relationship with the player, set [code]target = "player"[/code]. 
 ## Accepts either id's or names
 func update_npc_relationship(npc: String, target: String, value: float, type: String,):
@@ -372,20 +370,20 @@ func update_game_time(hour: int, minute: int, meridian: String = "AM"):
 		game_time["hours"] = hour
 		game_time["minutes"] = minute
 	elif hour > 12 or hour == 0:
-		game_time["hours"] = format_24hr(hour, meridian)
+		game_time["hours"] = _format_24hr(hour, meridian)
 		game_time["minutes"] = minute
 		game_time["meridian"] = meridian
 
-## Convert 24hr to 12hr
-func format_12hr(hour: int) -> Array:
+# Convert 24hr to 12hr
+func _format_12hr(hour: int) -> Array:
 	var am_pm = "AM" if hour < 12 else "PM"
 	hour = hour % 12
 	if hour == 0:
 		hour = 12
 	return [hour,am_pm]
 
-## Convert 12hr to 24hr
-func format_24hr(hour: int, meridian: String) -> int:
+# Convert 12hr to 24hr
+func _format_24hr(hour: int, meridian: String) -> int:
 	if meridian.to_lower() == "pm" and hour != 12:
 		hour = 12 + hour
 	if meridian.to_lower() == "am" and hour == 12:
@@ -393,7 +391,7 @@ func format_24hr(hour: int, meridian: String) -> int:
 	return hour
 
 ## gets an NPC's Resource from its id and returns an array of said resource and the NPC's directory.
-func get_npc(npc_id: String) -> Array:
+func get_npc(npc_id: String) -> Resource:
 	var target = "NPC_%s.tres" %npc_id
 	var dir = npc_path + target
 	var npc
@@ -402,10 +400,10 @@ func get_npc(npc_id: String) -> Array:
 	else:
 		npc = ResourceLoader.load(dir)
 	
-	return [npc,dir]
+	return npc
 
 ## gets an Events's Resource from its id and returns an array of said resource and the Event's directory.
-func get_event(event_id: String) -> Array:
+func get_event(event_id: String) -> Resource:
 	var target = "Event_%s.tres" %event_id
 	var dir = event_path + target
 	if not ResourceLoader.exists(dir) and event_id != "0":
@@ -414,11 +412,12 @@ func get_event(event_id: String) -> Array:
 		_register_default_event()
 	var event = ResourceLoader.load(dir)
 	
-	return [event,dir]
+	return event
 
 ## Generates a json file based on all the registered event types for easier dialogue writing.
 ## Deals with dialogue pertaining to events.
-## Expects a folder path in [code]path[/code] and a file name in [code]file_name[/code]
+## Expects a folder path in [code]path[/code] and a file name in [code]file_name[/code][br]
+## Ensure to run after setting all event and npc variables to ensure they reflect in the json
 func generate_dialogue_event_template(file_name:String, path: String):
 	if path.is_absolute_path() == false :
 		push_error("Provided Path must be an absolute path")
@@ -493,7 +492,8 @@ func generate_dialogue_event_template(file_name:String, path: String):
 
 ## generates a json file based on all the registered event types for easier dialogue writing
 ## Deals with dialogue pertaining to NPC's or the player.
-## Expects a folder path in [code]path[/code] and a file name in [code]file_name[/code]
+## Expects a folder path in [code]path[/code] and a file name in [code]file_name[/code] [br]
+## Ensure to run after setting all event and npc variables to ensure they reflect in the json
 func generate_dialogue_character_template(file_name:String, path: String):
 	# Currently outdated while building
 	if path.is_absolute_path() == false :
@@ -571,7 +571,8 @@ func _load_json(path: String) -> Dictionary:
 
 ## Accepts a json file for dialogue in a specific format to utilize in dialogue.
 ## see [method generate_dialogue_character_template] and [method generate_dialogue_event_template]
-## for an automated json file pertaining to dialogue
+## for an automated json file pertaining to dialogue. [br]
+## Overwrites any existing json files with the same name
 func load_dialogue_pools(event_pool_path: String, character_pool_path: String):
 	NpcDialogue._dialogue_pool_event = _load_json(event_pool_path)
 	NpcDialogue._dialogue_pool_character = _load_json(character_pool_path)
@@ -685,7 +686,7 @@ func load_plugin_data():
 func register_dialogue_condition(condition_text: String, callable:  Callable): 
 	dialogue_conditions[condition_text] = callable
 
-## Creates a default event to serve in place for generic conversations when theres no event or character as a topic
+# Creates a default event to serve in place for generic conversations when theres no event or character as a topic
 func _register_default_event(): 
 	var type_info = []
 	var event_id = "0"

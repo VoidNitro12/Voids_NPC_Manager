@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="NpcData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/voids_npc_manager/NpcData.gd" id="1_10qmy"]
+
+[resource]
+script = ExtResource("1_10qmy")
+custom = {
+"favorite_color": "red",
+"occupation": "blacksmith"
+}
+npc_id = "1"
+npc_name = "Aldric"
+health = 85.0
+base_friendliness = 0.7
+base_expressiveness = 0.4
+base_patience = 0.6
+base_curiosity = 0.5
+friendliness = 0.7
+expressiveness = 0.4
+patience = 0.6
+curiosity = 0.5
+mood = 0.2
+personality_range = 1.5
+relationships = {
+"2": {
+"memories": [],
+"name": "Aldric",
+"type": "ally",
+"value": 0.25
+}
+}

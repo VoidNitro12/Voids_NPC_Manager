@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="NpcData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/voids_npc_manager/NpcData.gd" id="1_enxal"]
+
+[resource]
+script = ExtResource("1_enxal")
+custom = {
+"favorite_color": "green",
+"occupation": "scout"
+}
+npc_id = "2"
+npc_name = "Brynja"
+health = 62.0
+base_friendliness = 0.3
+base_expressiveness = 0.8
+base_patience = 0.2
+base_curiosity = 0.9
+friendliness = 0.3
+expressiveness = 0.8
+patience = 0.2
+curiosity = 0.9
+mood = -0.3
+personality_range = 2.2
+relationships = {
+"player": {
+"memories": [],
+"name": "Elena",
+"type": "ally",
+"value": 0.8
+}
+}

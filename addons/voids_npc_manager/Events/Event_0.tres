@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="EventData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/voids_npc_manager/EventData.gd" id="1_gsl0j"]
+
+[resource]
+script = ExtResource("1_gsl0j")
+event_id = "0"
+event_name = "Starter"
+type = "default_convo"
+description = "Just used for non specific conversations"
+time = "00:00"
+date = "1st"
+day = "Sunday"
+where = "Game"
