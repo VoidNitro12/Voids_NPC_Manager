@@ -37,7 +37,8 @@ var _npc_fields = []
 
 # For storing event types 
 var _event_types = {
-	"default_convo": {}
+	"default_convo": {},
+	"UNAWARE": {}
 }
 
 # For storing relationship types 
@@ -122,6 +123,13 @@ func get_event_fields() -> Array:
 ## Returns a list of all current custom NPC fields 
 func get_npc_fields() -> Array:
 	return _npc_fields
+
+## Returns a list of all current event types 
+func get_event_types() -> Array:
+	var result = []
+	for type in _event_types:
+		result.append(type)
+	return result
 
 ## Adds an event type for use in making and handling events. accepts a string for [code]type[/code]. which is used as the name of the type.
 ## [code]type_values[/code] accepts a list of values that this type will contain.
