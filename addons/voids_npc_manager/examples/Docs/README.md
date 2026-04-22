@@ -7,7 +7,7 @@ A simple NPC handler system that stores events and links them to NPCs, with rela
 - Event tracking with type-specific data
 - Relationship system with shared memories
 - Mood-based dialogue vibes (WARM, COLD, HOSTILE, etc.)
-- JSON dialogue templates with `{placeholder}` replacement
+- Custom dialogue script format with `.TXT` files `#will be changed to custom .dgpool format`
 - Persistent save/load using Godot Resources
 
 ## Getting Started
@@ -43,9 +43,7 @@ func setup_NpcManager():
     NpcManager.add_event_type("celebration", ["organizer", "reason"])
     NpcManager.add_event_field("importance")
     
-    # Generate Dialogue Templates
-    NpcManager.generate_dialogue_character_template("character_dialogue", "res://Game_manager/")
-    NpcManager.generate_dialogue_event_template("event_dialogue", "res://Game_manager/")
+ 
 ```
 
 ###Notes
@@ -55,29 +53,5 @@ func setup_NpcManager():
 - Custom fields become accessible via npc.custom["field_name"]
 - Generated JSON templates provide a starting point for dialogue writing
 
-
-
-## Dialogue
-For dialogue writing, you should write lines as templates. After generating the dialogue JSON files for character and event-related dialogue, use formatted placeholders where possible and the manager should fill in information.
-
-Example with Events
-
-When creating an event, the manager requires an event type and expects certain fields to be provided for that type. For example, an event with type = "fight" might include fields like:
-
-- fighter1
-- fighter2
-- cause
-
-When writing dialogue for a fight event, you can include a placeholder in your template:
-
-```
-"They got into a fight just because of {cause}."
-```
-
-When that line is used during actual dialogue, {cause} will be automatically replaced with the actual cause stored in that specific event's resource.
-
-This works for any field in any event type. Simply wrap the field name in curly braces {} and the manager will swap it out with the real value.
-
-Example with Player Name
-
-The same applies to the player's name. Use {player0} anywhere in your dialogue, and it will be replaced with the player's actual name at runtime.
+## Documentation
+- [Dialogue Syntax and rules](Dialogue_Syntax.md)

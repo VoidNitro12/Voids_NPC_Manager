@@ -4,27 +4,20 @@ extends Node
 ## Main script for the NPC manager
 
 ## Path where all NPC's will be stored. see [method set_npc_saves] to change it.[br]
-## By default it is set to: [code] "res://addons/void's_npc_manager/NPCs/" [/code]
+## By default it is set to: [code] "res://addons/voids_npc_manager/NPCs/" [/code]
 var npc_path = "res://addons/voids_npc_manager/NPCs/"
 
 ## Path where all Events's will be stored. see [method set_event_saves] to change it.[br]
-## By default it is set to: [code] "res://addons/void's_npc_manager/Events/ [/code]
+## By default it is set to: [code] "res://addons/voids_npc_manager/Events/ [/code]
 var event_path = "res://addons/voids_npc_manager/Events/"
 
 ## Path where data such as custom fields, player data and time are stored.
 ## see [method set_data_saves] to change it. [br]
-## By default it is set to: [code] "res://addons/void's_npc_manager/plugin_data.tres" [/code]
+## By default it is set to: [code] "res://addons/voids_npc_manager/plugin_data.tres" [/code]
 var plugin_data_path: String = "res://addons/voids_npc_manager/plugin_data.tres"
 
 ## Set to [code]false[/code] to disable automatic loading of stored plugindata at runtime (_ready)
 var load_pluginData_on_runtime: bool = true
-
-## The number of default templates to serve as a scaffolding for dialogue structures. Will generate none if set to 0, though the manager expects a 
-## certain format for pools, so that is unadvised. 
-var default_pool_on_generation: int = 1
-
-## During generation of dialogue template jsons. tags are fields where each response leads too. this dictates how many tags should exists
-var chat_tag_fields: int = 1
 
 ## A map of conditions that will be used for parsing any conditional dialogue choice. see [method register_dialogue_condition] to add
 var dialogue_conditions = {}
@@ -37,7 +30,8 @@ var _npc_fields = []
 
 # For storing event types 
 var _event_types = {
-	"default_convo": {}
+	"default_convo": {},
+	"UNAWARE": {}
 }
 
 # For storing relationship types 
@@ -122,6 +116,13 @@ func get_event_fields() -> Array:
 ## Returns a list of all current custom NPC fields 
 func get_npc_fields() -> Array:
 	return _npc_fields
+
+## Returns a list of all current event types 
+func get_event_types() -> Array:
+	var result = []
+	for type in _event_types:
+		result.append(type)
+	return result
 
 ## Adds an event type for use in making and handling events. accepts a string for [code]type[/code]. which is used as the name of the type.
 ## [code]type_values[/code] accepts a list of values that this type will contain.
@@ -414,146 +415,6 @@ func get_event(event_id: String) -> Resource:
 	
 	return event
 
-## Generates a json file based on all the registered event types for easier dialogue writing.
-## Deals with dialogue pertaining to events.
-## Expects a folder path in [code]path[/code] and a file name in [code]file_name[/code][br]
-## Ensure to run after setting all event and npc variables to ensure they reflect in the json
-func generate_dialogue_event_template(file_name:String, path: String):
-	if path.is_absolute_path() == false :
-		push_error("Provided Path must be an absolute path")
-		return
-	if file_name.ends_with(".json") == false:
-		file_name += ".json"
-	if not path.ends_with("/"):
-		path += "/"
-	var save_path = path + file_name
-	var template = {}
-	var default_style = {"line": "None", "responses": []}
-	var response_style = {"text": "None", "condition": "None", "effect": "None", "tag": "None"}
-	for type in _event_types:
-		template[type] = {"direct":{}, "indirect":{}}
-		for descriptor_name in NpcDialogue.descriptor.keys() :
-			template[type]["direct"][descriptor_name] = {}
-			var direct_target = template[type]["direct"][descriptor_name] 
-			
-			direct_target["Reactive"] = {"greetings": []}
-			direct_target["Proactive"] = {"greetings": []}
-			for num in range(default_pool_on_generation):
-				var line = default_style.duplicate(true)
-				line["responses"] = [response_style.duplicate(true)]
-				direct_target["Reactive"]["greetings"].append(line)
-				
-				var line2 = default_style.duplicate(true)
-				line2["responses"] = [response_style.duplicate(true)]
-				direct_target["Proactive"]["greetings"].append(line2)
-			
-			template[type]["indirect"][descriptor_name] = {}
-			var indirect_target = template[type]["indirect"][descriptor_name] 
-			
-			indirect_target["Reactive"] = {"greetings": []}
-			indirect_target["Proactive"] = {"greetings": []}
-			for num in range(default_pool_on_generation):
-				var line = default_style.duplicate(true)
-				line["responses"] = [response_style.duplicate(true)]
-				indirect_target["Reactive"]["greetings"].append(line)
-				
-				var line2 = default_style.duplicate(true)
-				line2["responses"] = [response_style.duplicate(true)]
-				indirect_target["Proactive"]["greetings"].append(line2)
-			
-	template["UNAWARE"] = {}
-	for descriptor_name in NpcDialogue.descriptor.keys() :
-		template["UNAWARE"][descriptor_name] = {}
-		var unaware = template["UNAWARE"][descriptor_name] 
-		
-		unaware["Reactive"] = {"greetings": []}
-		unaware["Proactive"] = {"greetings": []}
-		for num in range(default_pool_on_generation):
-				var line = default_style.duplicate(true)
-				line["responses"] = [response_style.duplicate(true)]
-				unaware["Reactive"]["greetings"].append(line)
-				
-				var line2 = default_style.duplicate(true)
-				line2["responses"] = [response_style.duplicate(true)]
-				unaware["Proactive"]["greetings"].append(line2)
-		
-		template["UNAWARE"][descriptor_name]["Chat"] = {}
-		for val in chat_tag_fields:
-			var tag = str(val)
-			template["UNAWARE"][descriptor_name]["Chat"][tag] = []
-			for num in range(default_pool_on_generation):
-				template["UNAWARE"][descriptor_name]["Chat"][tag].append(default_style)
-	
-	var file = FileAccess.open(save_path, FileAccess.WRITE)
-	file.store_string(JSON.stringify(template, "\t"))
-	file.close()
-	print("Event dialogue template generated at: ", save_path)
-	
-
-## generates a json file based on all the registered event types for easier dialogue writing
-## Deals with dialogue pertaining to NPC's or the player.
-## Expects a folder path in [code]path[/code] and a file name in [code]file_name[/code] [br]
-## Ensure to run after setting all event and npc variables to ensure they reflect in the json
-func generate_dialogue_character_template(file_name:String, path: String):
-	# Currently outdated while building
-	if path.is_absolute_path() == false :
-		push_error("Provided Path must be an absolute path")
-		return
-	if file_name.ends_with(".json") == false:
-		file_name += ".json"
-	if not path.ends_with("/"):
-		path += "/"
-	var save_path = path + file_name
-	var template = {}
-	var default_style = {"line": "None", "responses": [{"text": "None", "condition": "None", "effect": "None", "tag": "None"}]}
-	for type in _relationship_types:
-		template[type] = {}
-		for descriptor_name in NpcDialogue.descriptor.keys() :
-			template[type][descriptor_name] = {}
-			template[type][descriptor_name]["Reactive"] = {}
-			template[type][descriptor_name]["Reactive"]["greetings"] = []
-			for num in default_pool_on_generation:
-				template[type][descriptor_name]["Reactive"]["greetings"].append(default_style)
-			
-			template[type][descriptor_name]["Proactive"] = {}
-			template[type][descriptor_name]["Proactive"]["greetings"] = []
-			for num in default_pool_on_generation:
-				template[type][descriptor_name]["Proactive"]["greetings"].append(default_style)
-			
-			template[type][descriptor_name]["Chat"] = {}
-			for val in chat_tag_fields:
-				var tag = str(val)
-				template[type][descriptor_name]["Chat"][tag] = []
-				for num in default_pool_on_generation:
-					template[type][descriptor_name]["Chat"][tag].append(default_style)
-			
-	template["UNAWARE"] = {}
-	for descriptor_name in NpcDialogue.descriptor.keys() :
-		template["UNAWARE"][descriptor_name] = {}
-		template["UNAWARE"][descriptor_name]["Reactive"] = {}
-		template["UNAWARE"][descriptor_name]["Reactive"]["greetings"] = []
-		for num in default_pool_on_generation:
-			template["UNAWARE"][descriptor_name]["Reactive"]["greetings"].append(default_style)
-		
-		template["UNAWARE"][descriptor_name]["Proactive"] = {}
-		template["UNAWARE"][descriptor_name]["Proactive"]["greetings"] = []
-		for num in default_pool_on_generation:
-			template["UNAWARE"][descriptor_name]["Proactive"]["greetings"].append(default_style)
-		
-		template["UNAWARE"][descriptor_name]["Chat"] = {}
-		for val in chat_tag_fields:
-			var tag = str(val)
-			template["UNAWARE"][descriptor_name]["Chat"][tag] = []
-			for num in default_pool_on_generation:
-				template["UNAWARE"][descriptor_name]["Chat"][tag].append(default_style)
-	var file = FileAccess.open(save_path, FileAccess.WRITE)
-	if file == null:
-		push_error("Failed to write file")
-		return
-	file.store_string(JSON.stringify(template, "\t"))
-	file.close()
-	print("Character Dialogue template generated at: ", save_path)
-
 func _load_json(path: String) -> Dictionary:
 	if not ResourceLoader.exists(path):
 		push_error("File not found: " + path)
@@ -569,13 +430,16 @@ func _load_json(path: String) -> Dictionary:
 		return {}
 	return parsed
 
-## Accepts a json file for dialogue in a specific format to utilize in dialogue.
-## see [method generate_dialogue_character_template] and [method generate_dialogue_event_template]
-## for an automated json file pertaining to dialogue. [br]
-## Overwrites any existing json files with the same name
+func _load_dgpool_file(path: String) -> String:
+	var validator = ParserValidator.new()
+	validator.validate_dialogue_file(path)
+	return path
+
+## Accepts a .TXT file for dialogue in a specific format to utilize in dialogue.
+## will be converted to a custom extention later. [br]
 func load_dialogue_pools(event_pool_path: String, character_pool_path: String):
-	NpcDialogue._dialogue_pool_event = _load_json(event_pool_path)
-	NpcDialogue._dialogue_pool_character = _load_json(character_pool_path)
+	NpcDialogue._dialogue_pool_event = _load_dgpool_file(event_pool_path)
+	NpcDialogue._dialogue_pool_character = _load_dgpool_file(character_pool_path)
 
 ## set the file path NPC's data should be stored in. Must be an absolute path
 ## see [method set_event_saves] to set event save path
