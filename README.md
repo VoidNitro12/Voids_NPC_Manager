@@ -54,4 +54,4 @@ func setup_NpcManager():
 - Generated JSON templates provide a starting point for dialogue writing
 
 ## Documentation
-- [Dialogue Syntax and rules](Dialogue_Syntax.md)
+- [Dialogue Syntax and rules](addons/voids_npc_manager/examples/Docs/Dialogue_Syntax.md)
