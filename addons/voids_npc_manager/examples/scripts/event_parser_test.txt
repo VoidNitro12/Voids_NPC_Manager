@@ -1,0 +1,77 @@
+# Test: UNAWARE event pool (fallback when NPC doesn't know about an event)
+# "~" denotes Event Type. Should match NpcManager._event_types or be "UNAWARE"
+
+~UNAWARE
+/COLD
+	*REACTIVE
+	section direct_greetings
+		- "What do you want?"
+			> "Just saying hi" (condition:"None", condition_type:"None", effect:"None", tag:"greeting")
+			> "Just curious" (condition:"None", condition_type:"None", effect:"None", tag:"neutral")
+		- "Don't know what you're talking about."
+			> "Never mind then" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+	
+	*PROACTIVE
+	section direct_greetings
+		- "Hey you! Something on your mind?"
+			> "Just wanted to talk" (condition:"None", condition_type:"None", effect:"None", tag:"smalltalk")
+			> "Nothing" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+	
+	*ONGOING
+	section smalltalk_response
+		- "I don't have much to say."
+			> "That's fine" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+			> "Maybe later then" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+
+/WARM
+	*REACTIVE
+	section direct_greetings
+		- "Hello there! Nice to see you."
+			> "Hi! How are you?" (condition:"None", condition_type:"None", effect:"None", tag:"smalltalk")
+			> "Just passing through" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+	
+	*PROACTIVE
+	section direct_greetings
+		- "Oh, good to see you! What brings you here?"
+			> "Just wanted to chat" (condition:"None", condition_type:"None", effect:"None", tag:"smalltalk")
+			> "Nothing really" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+	
+	*ONGOING
+	section smalltalk_response
+		- "I've been doing well, thanks for asking!"
+			> "Glad to hear it" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+			> "Seen anything interesting?" (condition:"None", condition_type:"None", effect:"None", tag:"news_response")
+	
+	section news_response
+		- "Not really. It's been quiet around here."
+			> "Good to know" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+			> "Well, take care" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+
+~FIGHT
+/WARM
+	*REACTIVE
+	section direct_mention
+		- "I saw that fight! It was intense!"
+			> "What happened?" (condition:"None", condition_type:"None", effect:"None", tag:"fight_details")
+			> "Who won?" (condition:"None", condition_type:"None", effect:"None", tag:"fight_winner")
+			> "I don't care" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+	
+	section indirect_mention
+		- "I heard about a fight that happened."
+			> "Tell me more" (condition:"None", condition_type:"None", effect:"None", tag:"fight_details")
+			> "Not interested" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+	
+	*ONGOING
+	section fight_details
+		- "{participant1} and {participant2} got into it over {cause}."
+			> "Who started it?" (condition:"None", condition_type:"None", effect:"None", tag:"fight_started")
+			> "That's crazy" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+	
+	section fight_started
+		- "{participant1} threw the first punch."
+			> "Good to know" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+			> "Who won?" (condition:"None", condition_type:"None", effect:"None", tag:"fight_winner")
+	
+	section fight_winner
+		- "{winner} came out on top."
+			> "Wow" (condition:"None", condition_type:"None", effect:"None", tag:"end")

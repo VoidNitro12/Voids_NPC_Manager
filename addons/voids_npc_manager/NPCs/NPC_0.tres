@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="NpcData" load_steps=2 format=3 uid="uid://2pwidprv74g6"]
+
+[ext_resource type="Script" uid="uid://bnm730syd7es7" path="res://addons/voids_npc_manager/NpcData.gd" id="1_a4tlb"]
+
+[resource]
+script = ExtResource("1_a4tlb")
+npc_id = "0"
+npc_name = "Nitro_ECM"
+health = 98.7
+base_friendliness = 1.0
+base_expressiveness = 0.5
+base_patience = 0.7
+base_curiosity = 0.3
+friendliness = 1.0
+expressiveness = 0.5
+patience = 0.7
+curiosity = 0.3
+mood = 1.0
+personality_range = 1.8
+direct_events = ["0"]

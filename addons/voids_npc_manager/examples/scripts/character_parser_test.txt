@@ -1,0 +1,51 @@
+# Test: UNAWARE character pool
+# "~" denotes the pool type. Should match NpcManager._npc_fields or be "UNAWARE"
+
+~UNAWARE
+/COLD
+	*REACTIVE
+	section direct_greetings
+		- "What do you want?"  # NPC initiates (player started conversation)
+			> "Just saying hi" (condition:"None", condition_type:"None", effect:"None", tag:"greeting")
+			> "No need to be rude" (condition:"None", condition_type:"None", effect:"None", tag:"insult")
+		- "Not interested."  
+			> "Too bad" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+	
+	*PROACTIVE
+	section direct_greetings
+		- "Hey you!"  # NPC initiates (NPC started conversation)
+			> "Oh, hi" (condition:"None", condition_type:"None", effect:"None", tag:"return_greeting")
+			> "Leave me alone" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+	
+	*ONGOING
+	section greeting_response
+		- "You again."  
+			> "Nice to see you too" (condition:"None", condition_type:"None", effect:"None", tag:"sarcasm")
+			> "Sorry to bother" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+		- "Got news?"
+			> "What kind?" (condition:"None", condition_type:"None", effect:"None", tag:"news")
+			> "Not really" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+	
+	section news_response
+		- "Heard about the fight at the tavern."
+			> "Tell me more" (condition:"None", condition_type:"None", effect:"None", tag:"fight_details")
+			> "Not interested" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+
+/WARM
+	*REACTIVE
+	section direct_greetings
+		- "Hello there!"
+			> "Hi!" (condition:"None", condition_type:"None", effect:"None", tag:"friendly")
+			> "Good to see you" (condition:"None", condition_type:"None", effect:"None", tag:"warm_return")
+	
+	*PROACTIVE
+	section direct_greetings
+		- "Oh, it's you! Good to see you!"
+			> "Hey! How are you?" (condition:"None", condition_type:"None", effect:"None", tag:"smalltalk")
+			> "Thanks, you too" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+	
+	*ONGOING
+	section smalltalk
+		- "I've been doing well, actually."
+			> "That's good to hear" (condition:"None", condition_type:"None", effect:"None", tag:"end")
+			> "Seen anything interesting lately?" (condition:"None", condition_type:"None", effect:"None", tag:"news")

@@ -1,37 +1,71 @@
 class_name Parser
-var locator
-var pool_script 
-var pool_path
-var lines
+var _lines
+var _pool_event_locator
+var _pool_character_locator
+var _pool_event_path
+var _pool_character_path
+var _pool_event_script
+var _pool_character_script
 
-func store_pool(file_path: String):
-	pool_path = file_path
+
+func store_pool(file_path: String, type: int ):
 	var validator = ParserValidator.new()
-	locator = validator.validate_dialogue_file(file_path)
+	match type:
+		NpcDialogue.PoolType.EVENT:
+			_pool_event_path = file_path
+			_pool_event_locator = validator.validate_dialogue_file(file_path)
+		NpcDialogue.PoolType.NPC:
+			_pool_character_path = file_path
+			_pool_character_locator = validator.validate_dialogue_file(file_path)
+		_:
+			push_error("Invalid PoolType see NpcDialogue.PoolType")
 
-func pool_request(event: String,vibe: String,mode: String,section: String):
+func pool_request(pool_type: int, field: String,vibe: int,mode: int,section: String):
+	var locator
+	var pool_path
+	var pool_script
+	match pool_type:
+		NpcDialogue.PoolType.EVENT:
+			var sel_script
+			locator = _pool_event_locator
+			pool_path = _pool_event_path
+			if _pool_event_script == null :
+				sel_script = _load_scripts(_pool_event_script, _pool_event_path)
+			else:
+				sel_script = _pool_event_script
+			pool_script = sel_script
+			_check_fields(NpcDialogue.PoolType.EVENT,field,vibe)
+		NpcDialogue.PoolType.NPC:
+			var sel_script
+			locator = _pool_character_locator
+			pool_path = _pool_character_path
+			if _pool_event_script == null :
+				sel_script = _load_scripts(_pool_character_script, _pool_character_path)
+			else:
+				sel_script = _pool_character_script
+			pool_script = sel_script
+			_check_fields(NpcDialogue.PoolType.NPC,field,vibe)
+		_:
+			push_error("Invalid PoolType see NpcDialogue.PoolType")
 	var validator = ParserValidator.new()
 	var result = []
 	var current_choice = {"line": "", "responses": []}
-	var target = "%s_%s_%s_%s"%[event,vibe,mode,section]
+	mode = NpcDialogue.PoolContext.keys()[mode]
+	var target = "%s_%s_%s_%s"%[field,vibe,mode,section]
 	var raw_pool = locator["SECTION"].has(target)
+	
+	
 	if raw_pool == false:
 		push_error("Pool not found")
 		return []
 	else:
 		var target_line = locator["SECTION"][target]
-		if pool_script == null :
-			var file = FileAccess.open(pool_path, FileAccess.READ)
-			if file == null:
-				push_error("Could not open file: %s" % pool_path)
-			pool_script = file.get_as_text().split("\n")
-			file.close()
 		var not_halt = true
-		var idx = target_line -1 #lines start counting from 0
-		var lines = pool_script
+		var idx = target_line -1 #_lines start counting from 0
+		var _lines = pool_script
 		while not_halt:
 			idx += 1 
-			var line = lines[idx]
+			var line = _lines[idx]
 			line = line.strip_edges()
 			line = validator.inline_comments_check(line)
 			
@@ -56,6 +90,7 @@ func pool_request(event: String,vibe: String,mode: String,section: String):
 				var text = line.trim_prefix(ParserValidator.RESPONSE_MARKER).strip_edges()
 				var response = {}
 				response["condition"] = "None"
+				response["condition_type"] = "None"
 				response["effect"] = "None"
 				response["tag"] = "None"
 				
@@ -80,3 +115,32 @@ func pool_request(event: String,vibe: String,mode: String,section: String):
 				
 		result.append(current_choice)
 	return result
+
+func _check_fields(pool_type: int, field: String,vibe: int):
+	var matches = {"Field": false, "Vibe": false}
+	match pool_type:
+		NpcDialogue.PoolType.EVENT:
+			if field in NpcManager._event_types:
+				matches["Field"] = true
+			if vibe in NpcDialogue.descriptor.keys():
+				matches["Vibe"] = true
+		NpcDialogue.PoolType.NPC:
+			if field in NpcManager._npc_fields:
+				matches["Field"] = true
+				if vibe in NpcDialogue.descriptor.keys():
+					matches["Vibe"] = true
+		_:
+			push_error("Invalid PoolType seeNpcDialogue.PoolType")
+	for entry in matches:
+		if not entry:
+			var mismatches = str(matches)
+			push_error("Some entries do not match any existing in the NpcManager, Mismatches: %s"%mismatches)
+
+func _load_scripts(raw_script, pool_path: String):
+	var pool_script
+	var file = FileAccess.open(pool_path, FileAccess.READ)
+	if file == null:
+		push_error("Could not open file: %s" % pool_path)
+	pool_script = file.get_as_text().split("\n")
+	file.close()
+	return pool_script
