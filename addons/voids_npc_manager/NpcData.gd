@@ -2,7 +2,6 @@
 class_name NpcData
 extends Resource
 
-var custom_fields = NpcManager._npc_fields
 @export var custom: Dictionary = {}
 
 @export var npc_id: String = ""
@@ -18,8 +17,8 @@ var custom_fields = NpcManager._npc_fields
 @export var curiosity: int = 0
 @export var mood: int = 0
 @export var personality_range: int = 0
-@export var direct_events: Array = []
-@export var indirect_events: Array = []
+var direct_events: Dictionary= {}
+var indirect_events: Dictionary= {}
 @export var relationships: Dictionary = {}
 
 func create(npc_info: Dictionary, id: String):
@@ -40,6 +39,7 @@ func create(npc_info: Dictionary, id: String):
 	indirect_events = npc_info.indirect_events
 	relationships = {}
 	
+	var custom_fields = NpcManager._npc_fields
 	for field in custom_fields:
 		if npc_info.has(field):
 			custom[field] = npc_info[field]

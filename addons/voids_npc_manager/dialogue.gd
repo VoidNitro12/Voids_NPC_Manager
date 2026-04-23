@@ -1,6 +1,6 @@
 @tool
 extends Node
-##Class for Handling Dialouge in the Plugin
+##Class for Handling Dialogue in the Plugin
 
 ## WARM = friendly, expressive, curious and patient. [br]
 ## GENTLE = friendly, expressive, neutral curious and patient. [br]
@@ -39,6 +39,25 @@ enum DialogueConditionType {
 	CUSTOM
 	}
 
+
+const _RANGES = {
+	"high": [60,100],
+	"neutral": [40,60],
+	"low": [0,40]
+}
+
+## Templates used to define Vibes explicitly
+const VIBE_TEMPLATES = [
+	{ "name": Vibe.WARM, "friendliness":["high"], "expressivness":["high","neutral"], "patience":["high","neutral"], "curiousity":["high","neutral"]},
+	{ "name": Vibe.GENTLE, "friendliness":["high","neutral"], "expressivness":["high"], "patience":["high","neutral"], "curiousity":["neutral","low"]},
+	{ "name": Vibe.COLD, "friendliness":["low"], "expressivness":["low"], "patience":["low","neutral"], "curiousity":["low"]},
+	{ "name": Vibe.HOSTILE, "friendliness":["low"], "expressivness":["high"], "patience":["low"], "curiousity":["low","neutral"]},
+	{ "name": Vibe.DISTANT, "friendliness":["neutral","low"], "expressivness":["neutral","low"], "patience":["neutral"], "curiousity":["neutral"]},
+	{ "name": Vibe.EAGER, "friendliness":["high","neutral"], "expressivness":["high"], "patience":["low"], "curiousity":["high"]},
+	{ "name": Vibe.TERSE, "friendliness":["neutral"], "expressivness":["low"], "patience":["low"], "curiousity":["low","neutral"]},
+	{ "name": Vibe.DETACHED, "friendliness":["low"], "expressivness":["neutral","low"], "patience":["neutral"], "curiousity":["neutral"]}
+]
+
 # formats a given line by swapping key strings with their information counterparts.
 # all dialouge event templates should have keys such as {npc1}. corresponding to the event type
 # where {npc1} is a valid field in the provided event_type that will also contain a string if filled. 
@@ -71,63 +90,46 @@ func _dialogue_char_format(sel_char_type: String, line: String) -> String:
 		line = line.replace(formated_char,sel_char_type)
 	return line
 
-func _apply_mood(npc: Resource) -> Resource:
+func _apply_mood(npc: Resource, npc_id: String) -> Resource:
+	var file_name = "NPC_%s.tres" %npc_id
+	var save_path = NpcManager.npc_path + file_name
 	var traits = ["friendliness", "expressiveness", "patience", "curiosity"]
 	for value in traits:
 		var base = npc["base_" + value]
 		var min_val = base - npc.personality_range
 		var max_val = base + npc.personality_range
 		npc[value] = clampf(npc[value] + npc.mood, min_val, max_val)
+	NpcManager._save_queue.append({"res": npc, "path": save_path})
 	return npc
 
 func _vibe_band(value: int, range: String) -> bool:
-	var range_float = []
-	if range == "high" : 
-		range_float = [60,100]
-	elif range == "neutral": 
-		range_float = [40,60]
-	elif range == "low": 
-		range_float = [0,40]
-	var result = false
-	var low = range_float[0]
-	var high = range_float[1]
-	if value < high and value > low:
-		result = true
-	return result
+	var bounds = _RANGES[range]
+	return value <= bounds[1] and value >= bounds[0]
 
 func _vibe_map(npc: Resource):
-	var vibe
-	var f = npc.friendliness
-	var e = npc.expressiveness
-	var p = npc.patience
-	var c = npc.curiosity
-	
-	var warm = { "name": Vibe.WARM, f:["high"], e:["high","neutral"], p:["high","neutral"], c:["high","neutral"]}
-	var gentle = { "name": Vibe.GENTLE, f:["high","neutral"], e:["high"], p:["high","neutral"], c:["neutral","low"]}
-	var cold = { "name": Vibe.COLD, f:["low"], e:["low"], p:["low","neutral"], c:["low"]}
-	var hostile = { "name": Vibe.HOSTILE, f:["low"], e:["high"], p:["low"], c:["low","neutral"]}
-	var distant = { "name": Vibe.DISTANT, f:["neutral","low"], e:["neutral","low"], p:["neutral"], c:["neutral"]}
-	var eager = { "name": Vibe.EAGER, f:["high","neutral"], e:["high"], p:["low"], c:["high"]}
-	var terse = { "name": Vibe.TERSE, f:["neutral"], e:["low"], p:["low"], c:["low","neutral"]}
-	var detached = { "name": Vibe.DETACHED, f:["low"], e:["neutral","low"], p:["neutral"], c:["neutral"]}
-	var vibes = [warm,gentle,cold,hostile,eager,terse,detached,distant]
-	for v in vibes:
-		var stack = []
-		var trait_passes = false
-		for key in v:
-			if key != "name":
-				var value = v[key]
-				for item in value:
-					if  _vibe_band(key,item):
-						trait_passes = true
-				stack.append(trait_passes)
-		if not stack.has(false):
-			vibe = v.name
-			break
-	if vibe == null:
-		push_warning("No match found, using default of Distant")
-		vibe = Vibe.DISTANT
-	return vibe
+	var traits = {
+		"friendliness": npc.friendliness,
+		"expressiveness": npc.expressiveness,
+		"patience": npc.patience,
+		"curiosity": npc.curiosity,
+	}
+	for template in VIBE_TEMPLATES:
+		var vibe_valid = true
+		for trait_name in ["friendliness","expressiveness","patience","curiosity"]:
+			var trait_value = traits[trait_name]
+			var allowed_ranges = template[trait_name]
+			var trait_passes = false
+			for range in allowed_ranges:
+				if _vibe_band(trait_value, range):
+					trait_passes = true
+					break
+			if not trait_passes:
+				vibe_valid = false
+				break
+		if vibe_valid:
+			return template[name]
+	push_warning("No match found, using default of Distant")
+	return Vibe.DISTANT
 
 func _query_event(event_id: String, npc: Resource, vibe: int , context: int, section: String) -> Array:
 	var event = NpcManager.get_event(event_id)
@@ -153,7 +155,7 @@ func _query_char(char_id: String, npc: Resource, vibe: int , context: int, secti
 	var pool
 	var rel_type
 	if npc.relationships.has(char_id):
-		rel_type = npc.relationships.char_id.type
+		rel_type = npc.relationships[char_id].type
 		pool = parser.pool_request(PoolType.NPC,rel_type,vibe,context,section)
 	else:
 		rel_type = "UNAWARE"
@@ -214,7 +216,7 @@ func _condition_check(condition: String,npc: Resource, condition_type: String):
 ## Returns a An Array containing a String of dialouge selected from a dialogue pool about characters and events, As well as an array of
 ## potential responses that exist.[br]
 func talk_to_npc(request: Resource) -> Array:
-	var npc = request.npc 
+	var npc_id = request.npc 
 	var pool_type = request.pool_type
 	var event_id = request.event_id
 	var char_id = request.char_id
@@ -224,7 +226,8 @@ func talk_to_npc(request: Resource) -> Array:
 	var pool
 	var data
 	var chosen_line
-	var current_npc = _apply_mood(npc)
+	var npc = NpcManager.get_npc(npc_id)
+	var current_npc = _apply_mood(npc,npc_id)
 	var vibe =  _vibe_map(current_npc)
 	match pool_type:
 		PoolType.EVENT:

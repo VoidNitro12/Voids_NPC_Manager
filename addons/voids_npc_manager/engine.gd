@@ -22,6 +22,9 @@ var load_pluginData_on_runtime: bool = true
 ## A map of conditions that will be used for parsing any conditional dialogue choice. see [method register_dialogue_condition] to add
 var dialogue_conditions = {}
 
+# format = {"res": target, "path": save_path}
+var _save_queue = []
+
 #Events fields that the plugin will utilize
 var _event_fields = []
 
@@ -62,9 +65,12 @@ var game_time = {
 var player_data = {
 	"id": "0",
 	"player_name" : "Player",
-		"direct_events": [],
-		"indirect_events": []
+		"direct_events": {},
+		"indirect_events": {}
 }
+
+func _process(delta: float) -> void:
+	_operate_save_queue()
 
 func _ready() -> void:
 	if load_pluginData_on_runtime:
@@ -182,27 +188,29 @@ func add_event(event_info: Dictionary, event_type_info: Array, involve_player : 
 	event.create(event_info,event_id)
 	var file_name = "Event_%s.tres" %event_id 
 	var save_path = event_path + file_name
-	ResourceSaver.save(event,save_path)
+	_save_queue.append({"res": event, "path": save_path})
 	_event_ids.append(event_id)
 	_event_counter += 1
 
-	for witness in event_info.direct_witness:
-		var npc = get_npc(witness)
+	for witness_id in event_info.direct_witness:
+		if get_npc(witness_id) == null:
+			push_error("Witness ID %s does not exist, skipping" % witness_id)
+			continue
+		var npc = get_npc(witness_id)
 		var dir = "NPC_%s.tres"%npc.npc_id
-		if npc == null:
-			push_warning("NPC id %s in direct witness' doesnt exist", witness)
-		else:
-			npc.direct_events.append(event_id)
-			ResourceSaver.save(npc,dir)
+		npc.direct_events[event_id] = true
+		npc.indirect_events[event_id] = false
+		_save_queue.append({"res": npc, "path": dir})
 	
-	for witness in event_info.indirect_witness:
-		var npc = get_npc(witness)
+	for witness_id in event_info.indirect_witness:
+		if get_npc(witness_id) == null:
+			push_error("Witness ID %s does not exist, skipping" % witness_id)
+			continue
+		var npc = get_npc(witness_id)
 		var dir = "NPC_%s.tres"%npc.npc_id
-		if npc == null:
-			push_warning("NPC id %s in indirect witness' doesnt exist", witness)
-		else:
-			npc.indirect_events.append(event_id)
-			ResourceSaver.save(npc,dir)
+		npc.direct_events[event_id] = false
+		npc.indirect_events[event_id] = true
+		_save_queue.append({"res": npc, "path": dir})
 
 ## Adds an NPC to memory. accepts dictionaries.
 ##[codeblock]
@@ -237,7 +245,7 @@ func add_npc(npc_info: Dictionary):
 	npc.create(npc_info,npc_id)
 	var file_name = "NPC_%s.tres" %npc_id 
 	var save_path = npc_path + file_name
-	ResourceSaver.save(npc,save_path)
+	_save_queue.append({"res": npc, "path": save_path})
 	_npc_ids.append(npc_id)
 	_npc_counter += 1
 
@@ -246,24 +254,57 @@ func add_npc(npc_info: Dictionary):
 ## means no NPC will have the id "1" again to avoid potential conflicts.
 func remove_npc(npc_id: String):
 	var path = npc_path + "NPC_%s.tres" % npc_id
-	if ResourceLoader.exists(path):
-		DirAccess.remove_absolute(path)
-		_npc_ids.erase(npc_id)
-		save_plugin_data()
-	else:
+	if not ResourceLoader.exists(path):
 		push_error("NPC not found: %s" % npc_id)
+		return
+	DirAccess.remove_absolute(path)
+	_npc_ids.erase(npc_id)
+	for npc in _npc_ids:
+		var target_npc = get_npc(npc)
+		if target_npc.relationships.has(npc_id):
+			target_npc.relationships.erase(npc_id)
+			var save_path = npc_path + "NPC_%s.tres" % npc
+			_save_queue.append({"res": target_npc, "path": save_path})
+	for event in _event_ids:
+		var changed = false
+		var target_event = get_event(event)
+		if target_event.direct_witness.has(npc_id):
+			target_event.direct_witness.erase(npc_id)
+			changed = true
+		if target_event.indirect_witness.has(npc_id):
+			target_event.indirect_witness.erase(npc_id)
+			changed = true
+		if changed:
+			var save_path = event_path + "Event_%s.tres" % event
+			_save_queue.append({"res": target_event, "path": save_path})
 
 ## Deletes an Event permanently.[br]
 ## Note that Event ids are not reassignable, deleting an Event with an id "1"
 ## means no Event will have the id "1" again to avoid potential conflicts.
 func remove_event(event_id: String):
 	var path = event_path + "Event_%s.tres" % event_id
-	if ResourceLoader.exists(path):
-		DirAccess.remove_absolute(path)
-		_event_ids.erase(event_id)
-		save_plugin_data()
-	else:
+	if not ResourceLoader.exists(path):
 		push_error("Event not found: %s" % event_id)
+		return
+	DirAccess.remove_absolute(path)
+	_event_ids.erase(event_id)
+	for npc in _npc_ids:
+		var changed = false
+		var target_npc = get_npc(npc)
+		if target_npc.direct_events.has(event_id):
+			target_npc.direct_events.erase(event_id)
+			changed = true
+		if target_npc.indirect_events.has(event_id):
+			target_npc.indirect_events.erase(event_id)
+			changed = true
+		if not target_npc.relationships.is_empty():
+			for rel in target_npc.relationships:
+				if target_npc in rel.memories:
+					rel.memories.erase(target_npc)
+					changed = true
+		if changed:
+			var save_path = npc_path + "NPC_%s.tres" % npc
+			_save_queue.append({"res": target_npc, "path": save_path})
 
 ## Returns a dictionary with all npcs containing the same name and their ids.
 ## If looking for a single NPCs id by name. see [method get_npc_by_name]
@@ -299,10 +340,11 @@ func get_npc_by_name(target: String)  -> Resource:
 		push_error("No NPC found with the name: %s" % target)
 	return found_npc
 
-# Checks if a given input is a valid id or name of an NPC and if true, Returns their id
+## Checks if a given input is a valid id or name of an NPC and if true, Returns their id.[br]
+## If passing a name checks for the first npc with that name only.
 func _check_for_npc(id) -> Resource:
 	var npc
-	if id.is_valid_int():
+	if _npc_ids.has(id):
 		npc = get_npc(id)
 	else:
 		npc = get_npc_by_name(id)
@@ -330,11 +372,9 @@ func update_npc_relationship(npc: String, target: String, value: int, type: Stri
 		var target_npc_events = sel_target.direct_events
 		var shared_memories = []
 		
-		for i in sel_npc_events: 
-			for j in target_npc_events: 
-				if i == j:
-					shared_memories.append(i)
-					break
+		for event_id in  sel_npc_events.keys():
+			if target_npc_events.has(event_id):
+				shared_memories.append(event_id)
 		
 		var update = {
 			"name": sel_npc.npc_name,
@@ -349,11 +389,9 @@ func update_npc_relationship(npc: String, target: String, value: int, type: Stri
 		var player_events = player_data.direct_events
 		var shared_memories = []
 		
-		for i in sel_npc_events: 
-			for j in player_events : 
-				if i == j:
-					shared_memories.append(i)
-					break
+		for event_id in  sel_npc_events.keys():
+			if player_events .has(event_id):
+				shared_memories.append(event_id)
 		
 		var update = {
 			"name": player_data.player_name,
@@ -365,7 +403,7 @@ func update_npc_relationship(npc: String, target: String, value: int, type: Stri
 		sel_npc.relationships["player"] = update
 	
 	var dir = npc_path + "NPC_%s.tres" % sel_npc.npc_id
-	ResourceSaver.save(sel_npc, dir)
+	_save_queue.append({"res": sel_npc, "path": dir})
 
 ## To add custom relationship types for NPCs. Accepts a string for [code]type[/code]. which is used as the name of the type.
 func add_relationship_type(type: String):
@@ -402,7 +440,7 @@ func _format_24hr(hour: int, meridian: String) -> int:
 	if meridian.to_lower() == "pm" and hour != 12:
 		hour = 12 + hour
 	if meridian.to_lower() == "am" and hour == 12:
-		hour = 12
+		hour = 0
 	return hour
 
 ## gets an NPC's Resource from its id and returns an array of said resource and the NPC's directory.
@@ -530,7 +568,7 @@ func save_plugin_data():
 		"plugin_data_path": plugin_data_path
 	}
 	data.store(save_data)
-	ResourceSaver.save(data,plugin_data_path)
+	_save_queue.append({"res": data, "path": plugin_data_path})
 
 ## Loads any stored data in [member plugin_data_path].
 ## is automatically called at runtime if [member load_PluginData_on_runtime] is [code]true[/code]
@@ -560,7 +598,7 @@ func load_plugin_data():
 ##	func _check_friendly(npc):
 ##		return friendliness > 0.5
 ##[/codeblock]
-## all functions used in this dict should accept an NPC resorce argument
+## all functions used in this dict should accept an NPC resource argument
 func register_dialogue_condition(condition_text: String, callable:  Callable): 
 	dialogue_conditions[condition_text] = callable
 
@@ -583,4 +621,35 @@ func _register_default_event():
 	event.create(event_info,event_id)
 	var file_name = "Event_%s.tres" %event_id 
 	var save_path = event_path + file_name
-	ResourceSaver.save(event,save_path)
+	_save_queue.append({"res": event, "path": save_path})
+
+# Saves all changed files in the plugin that have been stored in a queue, call in delta to save per frame.[br]
+# Set min of 0 and max of 50
+func _operate_save_queue(per_frame_save: int = 10):
+	if _save_queue.is_empty():
+		return
+	per_frame_save = clamp(per_frame_save,1,50)
+	var saved = 0
+	while saved < per_frame_save and _save_queue.size() > 0:
+		var save = _save_queue[0]
+		var error = ResourceSaver.save(save.res, save.path)
+		if error != OK:
+			push_error("Failed to save: ", save.path)
+		_save_queue.pop_front()
+		save += 1
+
+## returns and array 2 dictionaries of the relationship data between 2 NPCs. [br]
+## returns an empty dictionary if one of the npc doesnt have any information on the other. [br]
+## # Note: Player not currently included
+func get_npc_relationship(npc_1,npc_2) -> Array:
+	var npc_1_id = _check_for_npc(npc_1)
+	var npc_2_id = _check_for_npc(npc_2)
+	var npc1 = get_npc(npc_1_id)
+	var npc2 = get_npc(npc_2_id)
+	var result1 = {}
+	var result2 = {}
+	if npc1.relationships.has(npc_2_id):
+		result1 = npc1.relationships[npc_2_id]
+	if npc2.relationships.has(npc_1_id):
+		result2 = npc2.relationships[npc_1_id]
+	return [result1,result2]

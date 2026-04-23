@@ -2,7 +2,6 @@
 class_name EventData
 extends Resource
 
-var custom_fields = NpcManager._event_fields
 var custom = {}
 
 @export var event_id: String = ""
@@ -28,6 +27,7 @@ func create(event_info: Dictionary, id: String ):
 	direct_witness = event_info.direct_witness
 	indirect_witness = event_info.indirect_witness
 	
+	var custom_fields = NpcManager._event_fields
 	for field in custom_fields:
 		if event_info.has(field):
 			custom[field] = event_info[field]

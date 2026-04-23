@@ -2,8 +2,8 @@
 class_name DialogueRequest
 ## Class for sending Dialogue requesnts to NpcDialogue
 
-## The NPC being spoken to
-var npc: Resource
+## The id of the NPC being spoken to
+var npc: String
 
 ## Pool type for the conversation see [enum NpcDialogue.PoolType]
 var pool_type: int

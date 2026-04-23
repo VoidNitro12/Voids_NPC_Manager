@@ -30,7 +30,7 @@ func pool_request(pool_type: int, field: String,vibe: int,mode: int,section: Str
 			locator = _pool_event_locator
 			pool_path = _pool_event_path
 			if _pool_event_script == null :
-				sel_script = _load_scripts(_pool_event_script, _pool_event_path)
+				_pool_event_script = _load_scripts(_pool_event_path)
 			else:
 				sel_script = _pool_event_script
 			pool_script = sel_script
@@ -40,7 +40,7 @@ func pool_request(pool_type: int, field: String,vibe: int,mode: int,section: Str
 			locator = _pool_character_locator
 			pool_path = _pool_character_path
 			if _pool_character_script == null :
-				sel_script = _load_scripts(_pool_character_script, _pool_character_path)
+				_pool_character_script = _load_scripts(_pool_character_path)
 			else:
 				sel_script = _pool_character_script
 			pool_script = sel_script
@@ -135,7 +135,7 @@ func _check_fields(pool_type: int, field: String,vibe: int):
 			var mismatches = str(matches)
 			push_error("Some entries do not match any existing in the NpcManager, Mismatches: %s"%mismatches)
 
-func _load_scripts(raw_script, pool_path: String):
+func _load_scripts(pool_path: String):
 	var pool_script
 	var file = FileAccess.open(pool_path, FileAccess.READ)
 	if file == null:

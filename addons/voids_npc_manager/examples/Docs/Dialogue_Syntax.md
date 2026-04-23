@@ -28,7 +28,8 @@ The same applies to the player's name. Use {player0} anywhere in your dialogue, 
 ## File Structure
 
 ```
-~EVENT_TYPE or UNAWARE
+@Script Type 
+~POOL_TYPE or UNAWARE
 	/VIBE
 		*MODE
 			section SECTION_NAME
@@ -40,7 +41,8 @@ The same applies to the player's name. Use {player0} anywhere in your dialogue, 
 
 | Element | Marker | Example |
 |---------|--------|---------|
-| Event/Pool | `~` | `~UNAWARE`, `~FIGHT` |
+|Script Type| `@`| `NPC`|
+| Pool | `~` | `~UNAWARE`, `~FIGHT` |
 | Vibe | `/` | `/WARM`, `/COLD`, `/TERSE` |
 | Mode | `*` | `*REACTIVE`, `*PROACTIVE`, `*ONGOING` |
 | Section | `section` | `section greetings`, `section direct_greetings` |
@@ -75,7 +77,7 @@ The same applies to the player's name. Use {player0} anywhere in your dialogue, 
 ## Example
 
 ```
-
+@NPC
 ~UNAWARE
 /COLD
 	*REACTIVE
@@ -99,8 +101,8 @@ Any field defined in an event type can be used as a placeholder:
 
 Player Name
 
-Use {player} to insert the player's name:
+Use {player0} to insert the player's name:
 
 ```
-"Hello {player}, good to see you!"
+"Hello {player0}, good to see you!"
 ```
