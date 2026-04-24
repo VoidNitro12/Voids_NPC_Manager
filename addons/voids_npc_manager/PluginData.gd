@@ -2,24 +2,25 @@
 class_name PluginData
 extends Resource
 
-@export var npc_path: String = "res://addons/voids_npc_manager/NPCs/"
-@export var event_path: String = "res://addons/voids_npc_manager/Events/"
-@export var plugin_data_path: String = "res://addons/voids_npc_manager/"
-@export var _event_fields: Array = []
-@export var _npc_fields: Array = []
-@export var _event_types: Dictionary = {}
-@export var _relationship_types: Array = []
-@export var npc_ids: Array = []
-@export var event_ids: Array = []
-@export var npc_counter : int 
-@export var event_counter : int 
-@export var game_time: Dictionary = {
+var plugin_version: String
+var npc_path: String = "res://addons/voids_npc_manager/NPCs/"
+var event_path: String = "res://addons/voids_npc_manager/Events/"
+var plugin_data_path: String = "res://addons/voids_npc_manager/"
+var event_fields: Array = []
+var npc_fields: Array = []
+var event_types: Dictionary = {}
+var relationship_types: Array = []
+var npc_ids: Array = []
+var event_ids: Array = []
+var npc_counter : int 
+var event_counter : int 
+var game_time: Dictionary = {
 	"hours": 0,
 	"minutes": 0,
 	"24hr": true,
 	"meridian": 'AM'
 	}
-@export var player_data: Dictionary = {
+var player_data: Dictionary = {
 	"id": "0",
 	"player_name" : "Player",
 		"direct_events": [],
@@ -30,10 +31,10 @@ func store(info : Dictionary):
 	npc_path  = info.npc_path 
 	event_path = info.event_path
 	plugin_data_path = info.plugin_data_path
-	_event_fields = info._event_fields
-	_npc_fields = info._npc_fields
-	_event_types = info._event_types
-	_relationship_types = info._relationship_types 
+	event_fields = info.event_fields
+	npc_fields = info.npc_fields
+	event_types = info.event_types
+	relationship_types = info.relationship_types 
 	npc_ids = info.npc_ids
 	event_ids = info.event_ids
 	event_counter = info.event_counter

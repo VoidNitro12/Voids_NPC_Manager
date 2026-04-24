@@ -7,6 +7,7 @@ const MODE_MARKER = "*"
 const SECTION_MARKER = "section"
 const NPC_LINE_MARKER = "-"
 const RESPONSE_MARKER = ">"
+const SEPARATOR = "^"
 
 var hierarchy = {
 	TYPE_MARKER : [VIBE_MARKER,MODE_MARKER,SECTION_MARKER,NPC_LINE_MARKER,RESPONSE_MARKER],
@@ -29,7 +30,7 @@ var _current_level
 var _to_skip = []
 var _valid = false
 
-func validate_dialogue_file(file_path: String) -> Dictionary:
+func validate_dialogue_file(file_path: String) -> Array:
 	_valid = false
 	_line_num = 0
 	current_type = ""
@@ -46,13 +47,12 @@ func validate_dialogue_file(file_path: String) -> Dictionary:
 	
 	for line in lines:
 		_line_num += 1
-		
-		if line.begins_with("#") or line.is_empty():
-			continue
 		var bare_line = line.strip_edges()
+		if bare_line.begins_with("#") or bare_line.is_empty():
+			continue
 		bare_line = inline_comments_check(bare_line)
 		
-		if line.begins_with(POOL_MARKER):
+		if bare_line.begins_with(POOL_MARKER):
 			_valid = _check_pool_type(bare_line)
 			stack_check.append(_valid)
 		elif bare_line.begins_with(TYPE_MARKER):
@@ -99,7 +99,7 @@ func validate_dialogue_file(file_path: String) -> Dictionary:
 			_move_till_next_top()
 			stack_check.append(false)
 	assert(stack_check.has(false) == false, "Unable to parse pool script due to errors")
-	return locator
+	return [locator,script_type]
 
 #func get_indent(line: String) -> int:
 	#var count = 0
@@ -114,9 +114,9 @@ func _check_pool_type(line: String):
 	var name = line.trim_prefix(POOL_MARKER)
 	match name:
 		"EVENT":
-			script_type = "EVENT"
+			script_type = NpcDialogue.PoolType.EVENT
 		"NPC":
-			script_type = "NPC"
+			script_type = NpcDialogue.PoolType.NPC
 		_:
 			push_error("Invalid Pool Type, should be EVENT or NPC")
 			return false
@@ -131,9 +131,9 @@ func _check_event_type(line: String):
 	_current_level = TYPE_MARKER
 	var name = line.trim_prefix(TYPE_MARKER).strip_edges()
 	match script_type:
-		"EVENT":
+		NpcDialogue.PoolType.EVENT:
 			if name not in NpcManager._event_types:
-				push_error("Invalid Pool type on line %d, skipping. see NpcManager.get_event_types() " %_line_num)
+				push_error("Invalid Pool type on line %d. see NpcManager.get_event_types() " %_line_num)
 				_move_till_next_top()
 				return false
 			else:
@@ -141,9 +141,9 @@ func _check_event_type(line: String):
 				current_type = name
 				locator["POOL_TYPE"][name] = _line_num
 				return true
-		"NPC":
+		NpcDialogue.PoolType.NPC:
 			if name not in NpcManager._relationship_types:
-				push_error("Invalid Relationship Type on line %d, skipping. see NpcManager.get_event_types() " %_line_num)
+				push_error("Invalid Relationship Type on line %d. see NpcManager.get_event_types() " %_line_num)
 				_move_till_next_top()
 				return false
 			else:
@@ -158,18 +158,18 @@ func _check_event_type(line: String):
 func _check_vibe(line: String):
 	current_vibe = null
 	if current_type == null:
-		push_error("No _valid Pool type to place Descriptor under on line %d, Skipping descriptor"%_line_num)
+		push_error("No _valid Pool type to place Descriptor under on line %d"%_line_num)
 		_move_till_next_top()
 		return false
 		
 	var name = line.trim_prefix(VIBE_MARKER).strip_edges()
-	if name not in NpcDialogue.descriptor.keys():
-		push_error("In_valid Emotional Descriptor on line %d, Skipping descriptor" %_line_num)
+	if name not in NpcDialogue.Vibe.keys():
+		push_error("In_valid Emotional Descriptor on line %d" %_line_num)
 		_move_till_next_top()
 	else:
 		_current_level = MODE_MARKER
 		current_vibe = name
-		var locator_name = current_type + "_" + name
+		var locator_name = current_type + SEPARATOR + name
 		locator["VIBE"][locator_name] = _line_num
 		return true
 
@@ -178,42 +178,42 @@ func _check_vibe(line: String):
 func _check_mode(line: String):
 	current_mode = null
 	if current_vibe == null:
-		push_error("No valid Emotional Descriptor to place Context under on line %d, Skipping"%_line_num)
+		push_error("No valid Emotional Descriptor to place Context under on line %d"%_line_num)
 		_move_till_next_top()
 		return false
 	var name = line.trim_prefix(MODE_MARKER).strip_edges()
 	if name not in NpcDialogue.PoolContext.keys():
-		push_error("Invalid Pool Context on line %d Skipping context" %_line_num)
+		push_error("Invalid Pool Context on line %d" %_line_num)
 		_move_till_next_top()
 	else:
 		_current_level = SECTION_MARKER
 		current_mode = name
-		var locator_name = current_type + "_" + current_vibe + "_" + name
+		var locator_name = current_type + SEPARATOR + current_vibe + SEPARATOR + name
 		locator["MODE"][locator_name] = _line_num
 		return true
 
 func _check_section(line: String):
 	current_section = null
 	if current_mode == null:
-		push_error("No valid Emotional Descriptor  to place Context under on line %d, Skipping"%_line_num)
+		push_error("No valid Emotional Descriptor  to place Context under on line %d"%_line_num)
 		_move_till_next_top()
 		return false
 	var name = line.trim_prefix(SECTION_MARKER).strip_edges()
 	current_section = name
 	_current_level = NPC_LINE_MARKER
-	var locator_name = current_type + "_" + current_vibe + "_" + current_mode + "_" + name
+	var locator_name = current_type + SEPARATOR + current_vibe + SEPARATOR + current_mode + SEPARATOR + name
 	locator["SECTION"][locator_name] = _line_num
 	return true
 
 func _check_npc_line(line: String):
 	_on_npc_line = false
 	if current_section == null:
-		push_error("No valid Section to place Context under on line %d, Skipping"%_line_num)
+		push_error("No valid Section to place Context under on line %d"%_line_num)
 		_move_till_next_top()
 		return false
 	var text = line.trim_prefix(NPC_LINE_MARKER).strip_edges()
 	if not text.begins_with("\"") and not text.ends_with("\""):
-		push_error("NPC line must be contained in qoutes with no other statements, line %d, Skipping"%_line_num)
+		push_error("NPC line must be contained in qoutes with no other statements, line %d"%_line_num)
 		_move_till_next_top()
 		return false
 	else:
@@ -234,19 +234,17 @@ func _check_responses(line: String):
 		_move_till_next_top()
 	return false
 
-func validate_response_format(text: String) -> bool:
-	var quote_pos = text.find("\"")
-	var paren_pos = text.find("(")
-
-	if quote_pos == -1:
-		push_error("No opening quote, line %d"%_line_num)
+func validate_response_format(line: String) -> bool:
+	var pattern = "\"([^\"]+)\"\\s*(\\{[^\\}]+\\})"
+	var regex = RegEx.new()
+	var text
+	var meta_raw
+	regex.compile(pattern)
+	var found = regex.search(line)
+	if found == null:
 		return false
-	if paren_pos == -1 or paren_pos < quote_pos:
-		push_error("Metadata parentheses must come after quoted text, line %d"%_line_num)
-		return false
-	if not text.ends_with(")"):
-		push_error("Missing closing parenthesis, line %d"%_line_num)
-		return false
+	text = found.get_string(1)
+	meta_raw = found.get_string(2)
 	return true
 
 func _move_till_next_top():
