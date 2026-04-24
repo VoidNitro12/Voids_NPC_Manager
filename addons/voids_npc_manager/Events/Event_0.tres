@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="EventData" load_steps=2 format=3 uid="uid://cuc7g4ruig3sl"]
+[gd_resource type="Resource" script_class="EventData" load_steps=2 format=3]
 
-[ext_resource type="Script" uid="uid://dcfjmmced8ojl" path="res://addons/voids_npc_manager/EventData.gd" id="1_gsl0j"]
+[ext_resource type="Script" path="res://addons/voids_npc_manager/EventData.gd" id="1_gsl0j"]
 
 [resource]
 script = ExtResource("1_gsl0j")

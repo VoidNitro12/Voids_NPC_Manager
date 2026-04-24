@@ -3,6 +3,9 @@ extends Node
 ## Void's NPC Manager (WIP)
 ## Main script for the NPC manager
 
+# Minimum version the plugin accepts for old plugin saves
+const _MINIMUM_VERSION = "0.2.3"
+
 ## Path where all NPC's will be stored. see [method set_npc_saves] to change it.[br]
 ## By default it is set to: [code] "res://addons/voids_npc_manager/NPCs/" [/code]
 var npc_path = "res://addons/voids_npc_manager/NPCs/"
@@ -257,15 +260,16 @@ func remove_npc(npc_id: String):
 	if not ResourceLoader.exists(path):
 		push_error("NPC not found: %s" % npc_id)
 		return
-	DirAccess.remove_absolute(path)
-	_npc_ids.erase(npc_id)
-	for npc in _npc_ids:
+	var to_delete_npc = get_npc(npc_id)
+	for npc in to_delete_npc.relationships:
 		var target_npc = get_npc(npc)
 		if target_npc.relationships.has(npc_id):
 			target_npc.relationships.erase(npc_id)
 			var save_path = npc_path + "NPC_%s.tres" % npc
 			_save_queue.append({"res": target_npc, "path": save_path})
-	for event in _event_ids:
+	
+	var all_event_ids = to_delete_npc.direct_events + to_delete_npc.indirect_events
+	for event in all_event_ids:
 		var changed = false
 		var target_event = get_event(event)
 		if target_event.direct_witness.has(npc_id):
@@ -277,6 +281,8 @@ func remove_npc(npc_id: String):
 		if changed:
 			var save_path = event_path + "Event_%s.tres" % event
 			_save_queue.append({"res": target_event, "path": save_path})
+	DirAccess.remove_absolute(path)
+	_npc_ids.erase(npc_id)
 
 ## Deletes an Event permanently.[br]
 ## Note that Event ids are not reassignable, deleting an Event with an id "1"
@@ -286,9 +292,9 @@ func remove_event(event_id: String):
 	if not ResourceLoader.exists(path):
 		push_error("Event not found: %s" % event_id)
 		return
-	DirAccess.remove_absolute(path)
-	_event_ids.erase(event_id)
-	for npc in _npc_ids:
+	var target_event = get_event(event_id)
+	var all_witness_ids = target_event.direct_witness + target_event.indirect_witness
+	for npc in all_witness_ids:
 		var changed = false
 		var target_npc = get_npc(npc)
 		if target_npc.direct_events.has(event_id):
@@ -300,11 +306,13 @@ func remove_event(event_id: String):
 		if not target_npc.relationships.is_empty():
 			for rel in target_npc.relationships:
 				if target_npc in rel.memories:
-					rel.memories.erase(target_npc)
+					rel.memories.erase(event_id)
 					changed = true
 		if changed:
 			var save_path = npc_path + "NPC_%s.tres" % npc
 			_save_queue.append({"res": target_npc, "path": save_path})
+	DirAccess.remove_absolute(path)
+	_event_ids.erase(event_id)
 
 ## Returns a dictionary with all npcs containing the same name and their ids.
 ## If looking for a single NPCs id by name. see [method get_npc_by_name]
@@ -341,14 +349,15 @@ func get_npc_by_name(target: String)  -> Resource:
 	return found_npc
 
 ## Checks if a given input is a valid id or name of an NPC and if true, Returns their id.[br]
-## If passing a name checks for the first npc with that name only.
+## If passing a name checks for the first npc with that name only. Will return [code]null[/code] if the id/name passed is invalid
 func _check_for_npc(id) -> Resource:
 	var npc
 	if _npc_ids.has(id):
 		npc = get_npc(id)
 	else:
 		npc = get_npc_by_name(id)
-		assert(npc != null, "No NPC found. must input a valid NPC id or name as a string")
+	if npc == null:
+		push_error("No NPC found. must input a valid NPC id or name as a string")
 	return npc
 
 ## Updates an NPCs relationship data using the desired NPCs name or id, and which NPC to edit their relationship
@@ -402,8 +411,11 @@ func update_npc_relationship(npc: String, target: String, value: int, type: Stri
 		
 		sel_npc.relationships["player"] = update
 	
-	var dir = npc_path + "NPC_%s.tres" % sel_npc.npc_id
-	_save_queue.append({"res": sel_npc, "path": dir})
+	var dir_sel = npc_path + "NPC_%s.tres" % sel_npc.npc_id
+	_save_queue.append({"res": sel_npc, "path": dir_sel})
+	if sel_target != null:
+		var dir_target = npc_path + "NPC_%s.tres" % sel_target.npc_id
+		_save_queue.append({"res": sel_target, "path": dir_target})
 
 ## To add custom relationship types for NPCs. Accepts a string for [code]type[/code]. which is used as the name of the type.
 func add_relationship_type(type: String):
@@ -417,14 +429,17 @@ func set_time_format(use_24hr = true):
 
 ## Use to let the plugin know the current time of the game as its used in different parts, like events
 ## and NPC's. [br]
-##Make sure to set preffered format with [method set_time_format] else it will use a 24hr format
+## meridian defaults to "AM" if not set or if invalid
+## Make sure to set preffered format with [method set_time_format] else it will use a 24hr format
 func update_game_time(hour: int, minute: int, meridian: String = "AM"):
 	if game_time["24hr"] == true:
-		game_time["hours"] = hour
-		game_time["minutes"] = minute
+		game_time["hours"] = clamp(hour,0,23)
+		game_time["minutes"] = clamp(minute,0,59)
 	elif hour > 12 or hour == 0:
 		game_time["hours"] = _format_24hr(hour, meridian)
-		game_time["minutes"] = minute
+		game_time["minutes"] = clamp(minute,0,59)
+		if meridian != "AM" and meridian != "PM":
+			meridian = "AM"
 		game_time["meridian"] = meridian
 
 # Convert 24hr to 12hr
@@ -506,8 +521,8 @@ func set_npc_saves(path: String):
 		push_error("Cannot be the same with plugin_data_path")
 		return
 	var dir = DirAccess.open(path)
-	if not dir.dir_exists(path):
-		DirAccess.make_dir_absolute(path)
+	if dir == null:
+		dir.make_dir_recursive(path)
 	npc_path = path
 
 ## set the file path Event data should be stored in. Must be an absolute path
@@ -523,8 +538,8 @@ func set_event_saves(path: String):
 		push_error("Cannot be the same with plugin_data_path")
 		return
 	var dir = DirAccess.open(path)
-	if not dir.dir_exists(path):
-		DirAccess.make_dir_absolute(path)
+	if dir == null:
+		dir.make_dir_recursive(path)
 	event_path = path
 	
 ## set the file path general data should be stored in. Include custom fields, player data etc.
@@ -544,21 +559,22 @@ func set_data_saves(file_name: String,path: String):
 	if event_path == path:
 		push_error("Cannot be the same with Event path")
 		return
+	var dir = DirAccess.open(path)
+	if dir == null:
+		dir.make_dir_recursive(path)
 	plugin_data_path = save_path
 	save_plugin_data()
 
 ## saves relevant plugin information to plugin_data_path. see [method set_data_saves] to change the path.
-## is automatically called after [method add_npc] and [method add_event]. 
-## Though it is still advised to call periodically regardless to not lose data
 func save_plugin_data():
 	var data = PluginData.new()
 	var save_data = {
 		"game_time": game_time,
 		"player_data":player_data,
-		"_event_fields": _event_fields,
-		"_event_types": _event_types,
-		"_npc_fields": _npc_fields,
-		"_relationship_types": _relationship_types,
+		"event_fields": _event_fields,
+		"event_types": _event_types,
+		"npc_fields": _npc_fields,
+		"relationship_types": _relationship_types,
 		"npc_ids": _npc_ids,
 		"event_ids": _event_ids,
 		"npc_counter": _npc_counter,
@@ -570,26 +586,72 @@ func save_plugin_data():
 	data.store(save_data)
 	_save_queue.append({"res": data, "path": plugin_data_path})
 
-## Loads any stored data in [member plugin_data_path].
-## is automatically called at runtime if [member load_PluginData_on_runtime] is [code]true[/code]
-func load_plugin_data(): 
+## Loads any stored data in [member plugin_data_path].[br]
+## merge dictates wether the plugin should simply overwrite current data with the save file or not 
+## is automatically called at runtime if [member load_PluginData_on_runtime] is [code]true[/code]. 
+func load_plugin_data(merge: bool = false): 
 	if not ResourceLoader.exists(plugin_data_path):
-		push_warning("No savedata file found at %s" %plugin_data_path)
+		push_warning("No lugin savedata file found at %s, creating file" %plugin_data_path)
+		save_plugin_data()
 		return
+	
 	var data = ResourceLoader.load(plugin_data_path)
-	game_time = data.game_time
-	player_data = data.player_data
-	_event_fields = data._event_fields
-	_event_types = data._event_types
-	_npc_fields = data._npc_fields
-	_relationship_types = data._relationship_types
-	_npc_ids = data.npc_ids
-	_event_ids = data.event_ids
-	_npc_counter = data.npc_counter
-	_event_counter = data.event_counter
-	npc_path = data.npc_path
-	event_path = data.event_path
-	plugin_data_path = data.plugin_data_path
+	if data == null: 
+		push_error("Unable to load plugin savedata from: %s" %plugin_data_path)
+		return 
+	
+	if data.get("plugin_version") == null:
+		push_error("Pluging savedata version does not exist")
+		return
+	var current_major = int(_MINIMUM_VERSION.split(".")[0])
+	var current_minor = int(_MINIMUM_VERSION.split(".")[1])
+	var save_major =  int(data.plugin_version.split(".")[0])
+	var save_minor = 	int(data.plugin_version.split(".")[1])
+	
+	if save_major < current_major:
+		push_error("Plugin savedata Outdated, expected at least %s got %s"%[_MINIMUM_VERSION,data.get("plugin_version")])
+		return
+	elif save_minor < current_minor:
+		push_warning("Plugin savedata slightly outdated, Proceeding with load. Plugin Version: %s , Save Version: %s"%[_MINIMUM_VERSION,data.get("plugin_version")])
+	elif save_minor > current_minor:
+		push_warning("Plugin savedata from newer version. Proceeding with load. Plugin Version: %s , Save Version: %s"%[_MINIMUM_VERSION,data.get("plugin_version")])
+		
+	var required_fields = ["npc_ids", "event_ids", "npc_counter", "relationship_types", "npc_fields", "event_fields", "npc_path", "event_path"]
+	for field in required_fields:
+		if not data.has(field):
+			push_error("Required Field missing from plugin save_data : %s" %field)
+			return
+	var new_state = {
+	"game_time" = data.game_time,
+	"player_data" = data.player_data,
+	"_event_fields" = data.event_fields,
+	"_event_types" = data.event_types,
+	"_npc_fields" = data.npc_fields,
+	"_relationship_types" = data.relationship_types,
+	"_npc_ids" = data.npc_ids,
+	"_event_ids"= data.event_ids,
+	"_npc_counter" = data.npc_counter,
+	"_event_counter" = data.event_counter,
+	"npc_path" = data.npc_path,
+	"event_path" = data.event_path,
+	"plugin_data_path" = data.plugin_data_path
+	}
+	
+	if not merge:
+		game_time = new_state.game_time
+		player_data = new_state.player_data
+		_event_fields = new_state._event_fields 
+		_event_types = new_state._event_types 
+		_npc_fields = new_state._npc_fields
+		_relationship_types = new_state._relationship_types
+		_npc_ids = new_state._npc_ids
+		_event_ids = new_state._event_ids
+		_npc_counter = new_state._npc_counter
+		_event_counter = new_state._event_counter
+		npc_path = new_state.npc_path
+		event_path = new_state.event_path 
+		plugin_data_path = new_state.plugin_data_path 
+
 
 ## Used to add a condition and its respective function to [member dialogue_conditions]
 ## a funtion needs to exist to run the check, for example
@@ -626,21 +688,22 @@ func _register_default_event():
 # Saves all changed files in the plugin that have been stored in a queue, call in delta to save per frame.[br]
 # Set min of 0 and max of 50
 func _operate_save_queue(per_frame_save: int = 10):
+	if Engine.is_editor_hint():
+		return
 	if _save_queue.is_empty():
 		return
 	per_frame_save = clamp(per_frame_save,1,50)
 	var saved = 0
 	while saved < per_frame_save and _save_queue.size() > 0:
-		var save = _save_queue[0]
+		var save = _save_queue.pop_front()
 		var error = ResourceSaver.save(save.res, save.path)
 		if error != OK:
 			push_error("Failed to save: ", save.path)
-		_save_queue.pop_front()
-		save += 1
+		saved += 1
 
-## returns and array 2 dictionaries of the relationship data between 2 NPCs. [br]
-## returns an empty dictionary if one of the npc doesnt have any information on the other. [br]
-## # Note: Player not currently included
+## Returns and array 2 dictionaries of the relationship data between 2 NPCs. [br]
+## Returns an empty dictionary if one of the npc doesnt have any information on the other. [br]
+## #Note: Player not currently included
 func get_npc_relationship(npc_1,npc_2) -> Array:
 	var npc_1_id = _check_for_npc(npc_1)
 	var npc_2_id = _check_for_npc(npc_2)

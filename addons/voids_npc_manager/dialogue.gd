@@ -131,7 +131,7 @@ func _vibe_map(npc: Resource):
 	push_warning("No match found, using default of Distant")
 	return Vibe.DISTANT
 
-func _query_event(event_id: String, npc: Resource, vibe: int , context: int, section: String) -> Array:
+func _query_event(event_id: String, npc: Resource, vibe: String, context: String, section: String) -> Array:
 	var event = NpcManager.get_event(event_id)
 	var parser = Parser.new()
 	var pool
@@ -149,7 +149,7 @@ func _query_event(event_id: String, npc: Resource, vibe: int , context: int, sec
 		pool = parser.pool_request(PoolType.EVENT,"UNAWARE",vibe,context,section)
 	return [pool,event]
 
-func _query_char(char_id: String, npc: Resource, vibe: int , context: int, section: String) -> Array:
+func _query_char(char_id: String, npc: Resource, vibe: String, context: String, section: String) -> Array:
 	var target = NpcManager.get_npc(char_id)
 	var parser = Parser.new()
 	var pool
@@ -221,6 +221,10 @@ func talk_to_npc(request: Resource) -> Array:
 	var event_id = request.event_id
 	var char_id = request.char_id
 	var context = request.context
+	if context < 0 or context > PoolContext.size():
+		push_error("Invalid Context Index")
+	else:
+		context = PoolContext.keys()[context]
 	var section = request.section
 	var pos_responses = []
 	var pool
@@ -229,6 +233,7 @@ func talk_to_npc(request: Resource) -> Array:
 	var npc = NpcManager.get_npc(npc_id)
 	var current_npc = _apply_mood(npc,npc_id)
 	var vibe =  _vibe_map(current_npc)
+	vibe = Vibe.keys()[vibe]
 	match pool_type:
 		PoolType.EVENT:
 			data = _query_event(event_id, current_npc,vibe,context,section)
