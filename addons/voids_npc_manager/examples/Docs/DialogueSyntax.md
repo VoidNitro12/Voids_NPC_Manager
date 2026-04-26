@@ -34,7 +34,7 @@ The same applies to the player's name. Use {player0} anywhere in your dialogue, 
 		*MODE
 			section SECTION_NAME
 				- "NPC dialogue line"
-					> "Player response" {condition:"", condition_type:"", effect:"", tag:""}
+					> "Player response" {"condition":"", "condition_type":"", "effect":"", "tag":""}
 ```
 
 ## Core Elements
@@ -47,7 +47,7 @@ The same applies to the player's name. Use {player0} anywhere in your dialogue, 
 | Mode | `*` | `*REACTIVE`, `*PROACTIVE`, `*ONGOING` |
 | Section | `section` | `section greetings`, `section direct_greetings` |
 | NPC Line | `-` | `- "What do you want?"` |
-| Player Response | `>` | `> "Just saying hi" {condition:"None", condition_type:"None", effect:"None", tag:"greeting"}` |
+| Player Response | `>` | `> "Just saying hi" {"condition":"None", "condition_type":"None", "effect":"None", "tag":"greeting"}` |
 | Comment | `#` | `# This is a comment` |
 
 ## Response Metadata
@@ -83,13 +83,11 @@ The same applies to the player's name. Use {player0} anywhere in your dialogue, 
 	*REACTIVE
 	section direct_greetings
 		- "What do you want?"
-			> "Just saying hi" {condition:"friendliness > 0.5", condition_type:"friendliness", effect:"None", tag:"greeting"}
-			> "You look grumpy" {condition:"mood < -0.3", condition_type:"mood", effect:"relationship -= 0.1", tag:"insult"}
-			> "Nothing" {condition:"None", condition_type:"None", effect:"None", tag:"end"}
+			> "Just saying hi" {"condition":"friendliness > 0.5", "condition_type":"friendliness", "effect":"None", "tag":"greeting"}
+			> "You look grumpy" {"condition":"mood < -0.3", "condition_type":"mood", effect:"relationship -= 0.1", "tag":"insult"}
+			> "Nothing" {"condition":"None", "condition_type":"None", "effect":"None", "tag":"end"}
 
 ```
-## Note
-Avoid using `^` in section names as its used a seperator for the parser's locator.
 
 ## Placeholders
 When writing dialogue, use curly braces {} for dynamic values.
@@ -99,6 +97,8 @@ Any field defined in an event type can be used as a placeholder:
 
 ```
 "They got into a fight just because of {cause}."
+"Im pretty sure {victim} is sad about it."
+"It happened on {day}, recall?."
 ```
 
 Player Name

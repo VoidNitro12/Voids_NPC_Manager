@@ -15,7 +15,7 @@ var custom = {}
 @export var direct_witness: Array = []
 @export var indirect_witness: Array = []
 
-func create(event_info: Dictionary, id: String ):
+func create(event_info: Dictionary, id: String, type_data: Array):
 	event_id = id
 	event_name = event_info.name
 	type = event_info.type
@@ -32,4 +32,11 @@ func create(event_info: Dictionary, id: String ):
 		if event_info.has(field):
 			custom[field] = event_info[field]
 		else:
-			push_warning("Custom Field '%s' not included in event_info " %field)
+			push_warning("Custom Field '%s' for general Events not included in event_info " %field)
+	
+	var custom_type_fields = NpcManager._event_types[type]
+	for field in custom_type_fields:
+		if event_info.has(field):
+			custom[field] = event_info[field]
+		else:
+			push_warning("Custom Field '%s' for Type %s not included in event_info " %[field,type])

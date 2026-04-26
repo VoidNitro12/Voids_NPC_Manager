@@ -102,11 +102,11 @@ func _load_pools():
 		return 
 	
 	if data.get("event_dialogue_lookup") == null:
-		push_warning("No event lookup found")
+		push_error("No event lookup found")
 	else:
 		_pool_event_locator = data.event_dialogue_lookup
 	
 	if data.get("npc_dialogue_lookup") == null:
-		push_warning("No npc lookup found")
+		push_error("No npc lookup found")
 	else:
 		_pool_character_locator = data.npc_dialogue_lookup

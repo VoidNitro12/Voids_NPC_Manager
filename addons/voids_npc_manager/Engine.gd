@@ -6,6 +6,7 @@ extends Node
 # Minimum version the plugin accepts for old plugin saves
 const _MINIMUM_VERSION = "0.2.3"
 
+#alpha1
 const _plugin_version = "0.3.0"
 
 ## Path where all NPC's will be stored. see [method set_npc_saves] to change it.[br]
@@ -22,7 +23,7 @@ var event_path = "res://addons/voids_npc_manager/Events/"
 var plugin_data_path: String = "res://addons/voids_npc_manager/plugin_data.tres"
 
 ## Set to [code]false[/code] to disable automatic loading of stored plugindata at runtime (_ready)
-var load_pluginData_on_runtime: bool =  false
+var load_plugindata_on_runtime: bool =  false
 
 ## A map of conditions that will be used for parsing any conditional dialogue choice. see [method register_dialogue_condition] to add
 var dialogue_conditions = {}
@@ -38,8 +39,8 @@ var _npc_fields = []
 
 # For storing event types 
 var _event_types = {
-	"default_convo": {},
-	"UNAWARE": {}
+	"default_convo": [],
+	"UNAWARE": []
 }
 
 # For storing relationship types 
@@ -78,7 +79,7 @@ func _process(delta: float) -> void:
 	_operate_save_queue()
 
 func _ready() -> void:
-	if load_pluginData_on_runtime:
+	if load_plugindata_on_runtime:
 		load_plugin_data()
 	_register_default_event()
 
@@ -90,17 +91,15 @@ func set_player_name(name: String):
 ## [code]event_type[/code] should be = "direct_events" or "indirect_events"
 func update_player_events(event_type: String, event_id: String):
 	assert(event_type == "direct_events" or event_type == "indirect_events", "Invalid event type. Must be 'direct_events' or 'indirect_events'")
-	player_data[event_type].append(event_id)
+	player_data[event_type][event_id] = true
 
 ## Returns the number of Events in use. 
 func num_events() -> int:
-	var num = _event_ids.size()
-	return num
+	return _event_ids.size()
 
 ## Returns the number of NPCs in use. 
-func num_npc() -> int:
-	var num = _npc_ids.size()
-	return num
+func num_npc() -> int: 
+	return _npc_ids.size()
 
 ## Add a field to be used in events. [code]field[/code] is the name of your entry
 ## eg making all events's contain an extra field "important"
@@ -176,12 +175,12 @@ func remove_event_type(type: String):
 ##	}
 ##	add_event(event_info)
 ##[/codeblock]
-## [code]event_type_info[/code] accepts a list. this list should contain info relevant to the type of event. see [method add_event_type]. [br]
+## [code]event_type_data[/code] accepts a list. this list should contain info relevant to the type of event. see [method add_event_type]. [br]
 ## Under witness, its refering to npcs that directly witnessed the even and those that should know of it indirectly, its respective subentries should contain NPC ids.
 ## If added individual NPC's data will be updated automaticaly.
 ## Any existing custom fields should be included. [br]
 ## Set [code]involve_player[/code] to [code]true[/code] to add this events to the players data, set [code]player_type[/code] to "direct_events" or "indirect_events" if so
-func add_event(event_info: Dictionary, event_type_info: Array, involve_player : bool = false , player_type : String = ""):
+func add_event(event_info: Dictionary, event_type_data: Array, involve_player : bool = false , player_type : String = ""):
 	
 	var num_ids = _event_counter + 1
 	var event_id =  str(num_ids)
@@ -191,7 +190,7 @@ func add_event(event_info: Dictionary, event_type_info: Array, involve_player : 
 		update_player_events(player_type, event_id)
 	
 	var event = EventData.new()
-	event.create(event_info,event_id)
+	event.create(event_info,event_id,event_type_data)
 	var file_name = "Event_%s.tres" %event_id 
 	var save_path = event_path + file_name
 	_save_queue.append({"res": event, "path": save_path})
@@ -271,7 +270,7 @@ func remove_npc(npc_id: String):
 			var save_path = npc_path + "NPC_%s.tres" % npc
 			_save_queue.append({"res": target_npc, "path": save_path})
 	
-	var all_event_ids = to_delete_npc.direct_events + to_delete_npc.indirect_events
+	var all_event_ids = to_delete_npc.direct_events.keys() + to_delete_npc.indirect_events.keys()
 	for event in all_event_ids:
 		var changed = false
 		var target_event = get_event(event)
@@ -308,7 +307,7 @@ func remove_event(event_id: String):
 			changed = true
 		if not target_npc.relationships.is_empty():
 			for rel in target_npc.relationships:
-				if target_npc in rel.memories:
+				if event_id in target_npc.relationships[rel].memories:
 					rel.memories.erase(event_id)
 					changed = true
 		if changed:
@@ -370,8 +369,8 @@ func _check_for_npc(id) -> Resource:
 ## [code]type[/code] is the type of relationship the NPCs have. See [method add_relationship_type()] to create types
 ## If you want to edit an NPCs relationship with the player, set [code]target = "player"[/code]. [br]
 ## Accepts either id's or names
-func update_npc_relationship(npc: String, target: String, value: int, type: String):
-	var sel_npc = _check_for_npc(npc)
+func update_npc_relationship(npc_id: String, target_id: String, value: int, type: String):
+	var sel_npc = get_npc(npc_id)
 	var sel_target
 	var sel_npc_events = sel_npc.direct_events 
 	value = clamp(value, 0, 100)
@@ -380,8 +379,8 @@ func update_npc_relationship(npc: String, target: String, value: int, type: Stri
 		push_error("Type: %s is not a valid custom type. see add_relationship_type" %type)
 		return
 	
-	if target != "player":
-		sel_target = _check_for_npc(target)
+	if target_id != "player":
+		sel_target = get_npc(target_id)
 		var target_npc_events = sel_target.direct_events
 		var shared_memories = []
 		
@@ -395,10 +394,9 @@ func update_npc_relationship(npc: String, target: String, value: int, type: Stri
 			"value": value,
 			"memories": shared_memories
 		}
-		var target_id = sel_target.npc_id
 		sel_npc.relationships[target_id] = update
 		
-	elif target == "player":
+	elif target_id == "player":
 		var player_events = player_data.direct_events
 		var shared_memories = []
 		
@@ -433,13 +431,13 @@ func set_time_format(use_24hr = true):
 
 ## Use to let the plugin know the current time of the game as its used in different parts, like events
 ## and NPC's. [br]
-## meridian defaults to "AM" if not set or if invalid
+## meridian defaults to "AM" if not set or if invalid. [br]
 ## Make sure to set preffered format with [method set_time_format] else it will use a 24hr format
 func update_game_time(hour: int, minute: int, meridian: String = "AM"):
 	if game_time["24hr"] == true:
 		game_time["hours"] = clamp(hour,0,23)
 		game_time["minutes"] = clamp(minute,0,59)
-	elif hour > 12 or hour == 0:
+	else:
 		game_time["hours"] = _format_24hr(hour, meridian)
 		game_time["minutes"] = clamp(minute,0,59)
 		if meridian != "AM" and meridian != "PM":
@@ -586,10 +584,8 @@ func save_plugin_data():
 	data.store(save_data)
 	_save_queue.append({"res": data, "path": plugin_data_path})
 
-## Loads any stored data in [member plugin_data_path].[br]
-## merge dictates wether the plugin should simply overwrite current data with the save file or not 
-## is automatically called at runtime if [member load_PluginData_on_runtime] is [code]true[/code]. 
-func load_plugin_data(merge: bool = false): 
+## Loads any stored data in [member plugin_data_path].
+func load_plugin_data(): 
 	if not ResourceLoader.exists(plugin_data_path):
 		push_warning("No plugin savedata file found at %s, creating file" %plugin_data_path)
 		save_plugin_data()
@@ -601,7 +597,7 @@ func load_plugin_data(merge: bool = false):
 		return 
 	
 	if data.get("plugin_version") == null:
-		push_error("Pluging savedata version does not exist")
+		push_error("Plugin savedata version does not exist")
 		return
 	var current_major = int(_MINIMUM_VERSION.split(".")[0])
 	var current_minor = int(_MINIMUM_VERSION.split(".")[1])
@@ -619,41 +615,41 @@ func load_plugin_data(merge: bool = false):
 	var required_fields = ["npc_ids", "event_ids", "npc_counter", "relationship_types", "npc_fields", "event_fields", "npc_path", "event_path"]
 	var missing_fields = []
 	for field in required_fields:
-		if not data.get(field) == null:
+		if data.get(field) == null:
 			missing_fields.append(field)
 	if missing_fields.size() > 0:
 		push_error("Required Field missing from plugin save_data : %s" %str(missing_fields))
 		return
-	var new_state = {
-	"game_time" = data.game_time,
-	"player_data" = data.player_data,
-	"_event_fields" = data.event_fields,
-	"_event_types" = data.event_types,
-	"_npc_fields" = data.npc_fields,
-	"_relationship_types" = data.relationship_types,
-	"_npc_ids" = data.npc_ids,
-	"_event_ids"= data.event_ids,
-	"_npc_counter" = data.npc_counter,
-	"_event_counter" = data.event_counter,
-	"npc_path" = data.npc_path,
-	"event_path" = data.event_path,
-	"plugin_data_path" = data.plugin_data_path
-	}
+	var new_state = data
+	#{
+	#"game_time" = data.game_time,
+	#"player_data" = data.player_data,
+	#"_event_fields" = data.event_fields,
+	#"_event_types" = data.event_types,
+	#"_npc_fields" = data.npc_fields,
+	#"_relationship_types" = data.relationship_types,
+	#"_npc_ids" = data.npc_ids,
+	#"_event_ids"= data.event_ids,
+	#"_npc_counter" = data.npc_counter,
+	#"_event_counter" = data.event_counter,
+	#"npc_path" = data.npc_path,
+	#"event_path" = data.event_path,
+	#"plugin_data_path" = data.plugin_data_path
+	#}
 	
-	if not merge:
-		game_time = new_state.game_time
-		player_data = new_state.player_data
-		_event_fields = new_state._event_fields 
-		_event_types = new_state._event_types 
-		_npc_fields = new_state._npc_fields
-		_relationship_types = new_state._relationship_types
-		_npc_ids = new_state._npc_ids
-		_event_ids = new_state._event_ids
-		_npc_counter = new_state._npc_counter
-		_event_counter = new_state._event_counter
-		npc_path = new_state.npc_path
-		event_path = new_state.event_path 
-		plugin_data_path = new_state.plugin_data_path 
+	game_time = new_state.game_time
+	player_data = new_state.player_data
+	_event_fields = new_state._event_fields 
+	_event_types = new_state._event_types 
+	_npc_fields = new_state._npc_fields
+	_relationship_types = new_state._relationship_types
+	_npc_ids = new_state._npc_ids
+	_event_ids = new_state._event_ids
+	_npc_counter = new_state._npc_counter
+	_event_counter = new_state._event_counter
+	npc_path = new_state.npc_path
+	event_path = new_state.event_path 
+	plugin_data_path = new_state.plugin_data_path
 
 
 ## Used to add a condition and its respective function to [member dialogue_conditions]
@@ -663,13 +659,13 @@ func load_plugin_data(merge: bool = false):
 ##	func _check_friendly(npc):
 ##		return friendliness > 0.5
 ##[/codeblock]
-## all functions used in this dict should accept an NPC resource argument
+## all functions used in this dict should accept an NPC resource argument AND return a boolean value
 func register_dialogue_condition(condition_text: String, callable:  Callable): 
 	dialogue_conditions[condition_text] = callable
 
 # Creates a default event to serve in place for generic conversations when theres no event or character as a topic
 func _register_default_event(): 
-	var type_info = []
+	var type_data = []
 	var event_id = "0"
 	var event_info ={
 	"name": "Starter",
@@ -683,7 +679,7 @@ func _register_default_event():
 	"indirect_witness": []
 	}
 	var event = EventData.new()
-	event.create(event_info,event_id)
+	event.create(event_info,event_id,type_data)
 	var file_name = "Event_%s.tres" %event_id 
 	var save_path = event_path + file_name
 	_save_queue.append({"res": event, "path": save_path})
@@ -705,17 +701,21 @@ func _operate_save_queue(per_frame_save: int = 10):
 		saved += 1
 
 ## Returns and array 2 dictionaries of the relationship data between 2 NPCs. [br]
-## Returns an empty dictionary if one of the npc doesnt have any information on the other. [br]
+## Returns an empty dictionary if one of the Npcs doesnt have any information on the other. [br]
 ## #Note: Player not currently included
-func get_npc_relationship(npc_1,npc_2) -> Array:
-	var npc_1_id = _check_for_npc(npc_1)
-	var npc_2_id = _check_for_npc(npc_2)
-	var npc1 = get_npc(npc_1_id)
-	var npc2 = get_npc(npc_2_id)
+func get_npc_relationship(npc_1: String,npc_2: String) -> Array:
+	var npc1 = get_npc(npc_1)
+	var npc2 = get_npc(npc_2)
 	var result1 = {}
 	var result2 = {}
-	if npc1.relationships.has(npc_2_id):
-		result1 = npc1.relationships[npc_2_id]
-	if npc2.relationships.has(npc_1_id):
-		result2 = npc2.relationships[npc_1_id]
+	if npc1.relationships.has(npc_2):
+		result1 = npc1.relationships[npc_2]
+	if npc2.relationships.has(npc_1):
+		result2 = npc2.relationships[npc_1]
 	return [result1,result2]
+
+## Saves everything in the save queue at a go.[br]
+## Does not work while in the editor
+func flush_save_queue():
+	while _save_queue.size() > 0 and Engine.is_editor_hint() == false:
+		_operate_save_queue()

@@ -6,9 +6,9 @@ extends Node
 ## GENTLE = friendly, expressive, neutral curious and patient. [br]
 ## COLD = unfriendly, not expressive, neutraly curious and not patient. [br]
 ## HOSTILE = unfriendly, expressive, not curious, and not patient. [br]
-## DISTANT = neutraly friendly, neutral expressiveness, neutral curiousity and neutral patience. [br]
+## DISTANT = neutraly friendly, neutral expressiveness, neutral curiosity and neutral patience. [br]
 ## EAGER = friendly, expressive, curious and not patient. [br]
-## DETACHED = unfriendly,neutral expressiveness, neutral curiousity and neutral patience. [br]
+## DETACHED = unfriendly,neutral expressiveness, neutral curiosity and neutral patience. [br]
 ## TERSE = neutraly friendly, not expressive, not curious and not patient. [br]
 enum Vibe {WARM, GENTLE, COLD, HOSTILE, DISTANT, EAGER, DETACHED, TERSE}
 # Note. its Just for reference, in the keys the enum descriptor is not used in dialogue.gd
@@ -28,7 +28,6 @@ enum PoolContext { REACTIVE, PROACTIVE, ONGOING}
 ## Default set Condition Types for evaluating conditions in dialouge. Choose CUSTOM to use custom functions
 ## with [method NpcManager.register_dialogue_condition]
 enum DialogueConditionType {
-	RELATIONSHIP,
 	MOOD,
 	FRIENDLINESS,
 	CURIOSITY,
@@ -48,14 +47,14 @@ const _RANGES = {
 
 ## Templates used to define Vibes explicitly
 const VIBE_TEMPLATES = [
-	{ "name": Vibe.WARM, "friendliness":["high"], "expressivness":["high","neutral"], "patience":["high","neutral"], "curiousity":["high","neutral"]},
-	{ "name": Vibe.GENTLE, "friendliness":["high","neutral"], "expressivness":["high"], "patience":["high","neutral"], "curiousity":["neutral","low"]},
-	{ "name": Vibe.COLD, "friendliness":["low"], "expressivness":["low"], "patience":["low","neutral"], "curiousity":["low"]},
-	{ "name": Vibe.HOSTILE, "friendliness":["low"], "expressivness":["high"], "patience":["low"], "curiousity":["low","neutral"]},
-	{ "name": Vibe.DISTANT, "friendliness":["neutral","low"], "expressivness":["neutral","low"], "patience":["neutral"], "curiousity":["neutral"]},
-	{ "name": Vibe.EAGER, "friendliness":["high","neutral"], "expressivness":["high"], "patience":["low"], "curiousity":["high"]},
-	{ "name": Vibe.TERSE, "friendliness":["neutral"], "expressivness":["low"], "patience":["low"], "curiousity":["low","neutral"]},
-	{ "name": Vibe.DETACHED, "friendliness":["low"], "expressivness":["neutral","low"], "patience":["neutral"], "curiousity":["neutral"]}
+	{ "name": Vibe.WARM, "friendliness":["high"], "expressiveness":["high","neutral"], "patience":["high","neutral"], "curiosity":["high","neutral"]},
+	{ "name": Vibe.GENTLE, "friendliness":["high","neutral"], "expressiveness":["high"], "patience":["high","neutral"], "curiosity":["neutral","low"]},
+	{ "name": Vibe.COLD, "friendliness":["low"], "expressiveness":["low"], "patience":["low","neutral"], "curiosity":["low"]},
+	{ "name": Vibe.HOSTILE, "friendliness":["low"], "expressiveness":["high"], "patience":["low"], "curiosity":["low","neutral"]},
+	{ "name": Vibe.DISTANT, "friendliness":["neutral","low"], "expressiveness":["neutral","low"], "patience":["neutral"], "curiosity":["neutral"]},
+	{ "name": Vibe.EAGER, "friendliness":["high","neutral"], "expressiveness":["high"], "patience":["low"], "curiosity":["high"]},
+	{ "name": Vibe.TERSE, "friendliness":["neutral"], "expressiveness":["low"], "patience":["low"], "curiosity":["low","neutral"]},
+	{ "name": Vibe.DETACHED, "friendliness":["low"], "expressiveness":["neutral","low"], "patience":["neutral"], "curiosity":["neutral"]}
 ]
 
 var parser = DialogueCache.new()
@@ -78,10 +77,18 @@ func _dialogue_event_format(event: Resource, line: String) -> String:
 			line = line.replace(formated_key,all_fields[key])
 	return line
 
-func _check_str_condition(text: String, npc: Resource ):
+func _check_str_condition(condition: String, npc: Resource ):
 	var conditions = NpcManager.dialogue_conditions
-	if conditions.has(text):
-		return conditions[text].call(npc)
+	var result
+	if conditions.has(condition):
+		result = conditions[condition].call(npc)
+	else:
+		push_error("Custom condition does not exist for condition: %s"%condition)
+		return null
+	if result is not bool:
+		push_error("Custom condition returned a value other than boolean. condition: %s"%condition)
+		return null
+	return result
 
 # formats a given line by swapping key strings with their information counterparts.
 # all dialouge char templates should have  key [code]{rel_type}[/code] explicitly, so that the manager can swap it out
@@ -129,7 +136,7 @@ func _vibe_map(npc: Resource):
 				vibe_valid = false
 				break
 		if vibe_valid:
-			return template[name]
+			return template["name"]
 	push_warning("No match found, using default of Distant")
 	return Vibe.DISTANT
 
@@ -163,6 +170,9 @@ func _query_char(char_id: String, npc: Resource, vibe: String, context: String, 
 	
 	return [pool,rel_type]
 
+# friendliness,curiosity,patience,expressiveness and mood do value checks only (<,>,=)
+# relationship also only does value checks with npc.relationship.value
+# direct_events and indirect_events do dict checks only 
 func _condition_check(condition: String,npc: Resource, condition_type: String):
 	var expression = Expression.new()
 	var variable
@@ -173,8 +183,8 @@ func _condition_check(condition: String,npc: Resource, condition_type: String):
 			variable = ["friendliness"]
 			execution_variable = [npc.friendliness]
 		DialogueConditionType.CURIOSITY: 
-			variable = ["curiousity"]
-			execution_variable = [npc.curiousity]
+			variable = ["curiosity"]
+			execution_variable = [npc.curiosity]
 		DialogueConditionType.PATIENCE: 
 			variable = ["patience"]
 			execution_variable = [npc.patience]
@@ -184,9 +194,6 @@ func _condition_check(condition: String,npc: Resource, condition_type: String):
 		DialogueConditionType.MOOD: 
 			variable = ["mood"]
 			execution_variable = [npc.mood]
-		DialogueConditionType.RELATIONSHIP: 
-			#relationships structure and mechanices arent definite yet
-			pass
 		DialogueConditionType.WITNESSED_EVENT_DIRECT: 
 			variable = ["direct_events"]
 			execution_variable = [npc.direct_events]
@@ -194,7 +201,9 @@ func _condition_check(condition: String,npc: Resource, condition_type: String):
 			variable = ["indirect_events"]
 			execution_variable = [npc.indirect_events]
 		DialogueConditionType.CUSTOM: 
-			_check_str_condition(condition, npc)
+			result = _check_str_condition(condition, npc)
+			if result != null:
+				return result
 		_: 
 			push_error("Invalid Condition Type. see NpcDialogue.DialogueConditionType")
 	expression.parse(condition, variable)
@@ -221,7 +230,7 @@ func talk_to_npc(request: Resource) -> Array:
 	var event_id = request.event_id
 	var char_id = request.char_id
 	var context = request.context
-	if context < 0 or context > PoolContext.size():
+	if context < 0 or context >= PoolContext.size():
 		push_error("Invalid Context Index")
 	else:
 		context = PoolContext.keys()[context]
@@ -238,18 +247,18 @@ func talk_to_npc(request: Resource) -> Array:
 		PoolType.EVENT:
 			data = _query_event(event_id, current_npc,vibe,context,section)
 			pool = data[0]
-			var type = data[1]
+			var event_resource = data[1]
 			
 			var chosen_index = randi() % pool.size()
 			var pool_dict = pool[chosen_index]
 			chosen_line = pool_dict.line
 			
-			chosen_line = _dialogue_event_format(type, chosen_line)
+			chosen_line = _dialogue_event_format(event_resource, chosen_line)
 			for response in pool_dict.responses:
 				var condition = response.condition
 				var condition_type = response.condition_type
 				var result
-				if condition_type != "None" or condition != "None":
+				if condition_type != "None" and condition != "None":
 					result = _condition_check(condition,npc,condition_type)
 					if result:
 						pos_responses.append(response)
@@ -258,8 +267,23 @@ func talk_to_npc(request: Resource) -> Array:
 		PoolType.NPC:
 			data = _query_char(char_id,npc,vibe,context,section)
 			pool = data[0]
-			var type = data[1]
-			pass
+			var npc_resource = data[1]
+			
+			var chosen_index = randi() % pool.size()
+			var pool_dict = pool[chosen_index]
+			chosen_line = pool_dict.line
+			
+			chosen_line = _dialogue_char_format(npc_resource, chosen_line)
+			for response in pool_dict.responses:
+				var condition = response.condition
+				var condition_type = response.condition_type
+				var result
+				if condition_type != "None" and condition != "None":
+					result = _condition_check(condition,npc,condition_type)
+					if result:
+						pos_responses.append(response)
+				else:
+					pos_responses.append(response)
 		_:
 			push_error("Invalid PoolType see NpcDialogue.PoolType")
 	

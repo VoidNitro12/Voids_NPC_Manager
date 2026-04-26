@@ -5,8 +5,8 @@ const ENGINE_AUTO = "NpcManager"
 const DIALOGUE_AUTO = "NpcDialogue"
 
 func _enable_plugin() -> void:
-	add_autoload_singleton(ENGINE_AUTO, "res://addons/voids_npc_manager/engine.gd")
-	add_autoload_singleton(DIALOGUE_AUTO, "res://addons/voids_npc_manager/dialogue.gd")
+	add_autoload_singleton(ENGINE_AUTO, "res://addons/voids_npc_manager/Engine.gd")
+	add_autoload_singleton(DIALOGUE_AUTO, "res://addons/voids_npc_manager/Dialogue.gd")
 
 
 

@@ -14,5 +14,5 @@ A simple NPC handler system that stores events and links them to NPCs, with rela
 ## Documentation
 - [Getting Started](addons/voids_npc_manager/examples/Docs/GettingStarted.md)
 - [Dialogue Syntax and rules](addons/voids_npc_manager/examples/Docs/DialogueSyntax.md)
-- [NpcManager]
-- [NpcDialogue]
+- [NpcManager](addons/voids_npc_manager/examples/Docs/NpcManager.md)
+- [NpcDialogue](addons/voids_npc_manager/examples/Docs/NpcDialogue.md)

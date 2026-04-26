@@ -9,6 +9,7 @@ const SECTION_MARKER = "section"
 const NPC_LINE_MARKER = "-"
 const RESPONSE_MARKER = ">"
 const SEPARATOR = "^"
+const COMMENT_MARKER = "#"
 
 var hierarchy = {
 	TYPE_MARKER : [VIBE_MARKER,MODE_MARKER,SECTION_MARKER,NPC_LINE_MARKER,RESPONSE_MARKER],
@@ -55,7 +56,7 @@ func validate_dialogue_file(file_path: String) -> Array:
 	for line in lines:
 		_line_num += 1
 		var bare_line = line.strip_edges()
-		if bare_line.begins_with("#") or bare_line.is_empty():
+		if bare_line.begins_with("COMMENT_MARKER") or bare_line.is_empty():
 			continue
 		bare_line = inline_comments_check(bare_line)
 		
@@ -285,7 +286,14 @@ func _move_till_next_top():
 	_to_skip = hierarchy[current]
 
 func inline_comments_check(line: String) -> String:
-	if line.contains("#"):
-		var split = line.split("#")
-		line = split[0]
+	var quotes_stack = 0
+	for i in range(line.length()):
+		if line[i] == '"':
+			quotes_stack += 1 
+		if quotes_stack == 2:
+			quotes_stack = 0
+		if line[i] == COMMENT_MARKER and quotes_stack == 0:
+			line = line.substr(0,i)
+	if quotes_stack != 0:
+		push_error("Uneven number of qouatations in line %d"%_line_num)
 	return line
