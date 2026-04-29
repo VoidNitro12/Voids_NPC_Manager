@@ -1,4 +1,4 @@
-# Void's NPC Manager v0.2.3 -> v0.3.0 (alpha3)
+# Void's NPC Manager v0.2.3 -> v0.3.0 (alpha4)
 - removed `load_dialogue_pools()` and `_load_dgpool_file()` from Engine.gd
 - changed all instances of `make_dir_recursive() to `make_dir_recursive_absolute()`
 - renamed `Dialogue_Syntax.md` -> `DialogueSyntax.md` and added `GettingStarted.md`
@@ -17,9 +17,14 @@
 - renamed `compile/` folder -> to `parse/` folder
 - renamed `parser.gd` -> to `DialogueCache.gd` and no longer does runtime parsing and now just does lookups of stored data
 - added ScriptData.gd resource class
-- renamed `parser_validator.gd` -> to `Parser.gd`
+- renamed `parser_validator.gd` -> to `Parser.gd` and now only handles parsing
 - added const COMMENT_MARKER to Parser.gd and set to "#"
-- improved `inline_comments_check()` in Parser.gd to better check for comments and double as a quotation check
 - removed the dgpool_extention plugin and migrated its files to `addons/voids_npc_manager/`
 - added `Lexer.gd` to handle tokenizing
 - added `Validator.gd` to handle validation of dialogue scripts
+- improved `inline_comments_check()` in Lexer.gd
+- Parser.gd now utilizes custom classes to store data as objects for better handling between scripts
+- added `_check_all_conditions()` to Dialogue.gd
+- added `_choose_line_obj()` to Dialogue.gd
+- added class `Conversation` to Dialogue.gd
+- added enum `intent_commands` to Dialogue.gd

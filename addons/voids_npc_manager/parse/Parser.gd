@@ -1,297 +1,152 @@
 @tool
 class_name Parser
 
-const POOL_MARKER = "@"
-const TYPE_MARKER = "~"
-const VIBE_MARKER = "/"
-const MODE_MARKER = "*"
-const SECTION_MARKER = "section"
-const NPC_LINE_MARKER = "-"
-const RESPONSE_MARKER = ">"
-const SEPARATOR = "^"
-const COMMENT_MARKER = "#"
-
-var hierarchy = {
-	TYPE_MARKER : [VIBE_MARKER,MODE_MARKER,SECTION_MARKER,NPC_LINE_MARKER,RESPONSE_MARKER],
-	VIBE_MARKER : [MODE_MARKER,SECTION_MARKER,NPC_LINE_MARKER,RESPONSE_MARKER],
-	MODE_MARKER : [SECTION_MARKER,NPC_LINE_MARKER,RESPONSE_MARKER],
-	SECTION_MARKER : [NPC_LINE_MARKER,RESPONSE_MARKER],
-	NPC_LINE_MARKER : [RESPONSE_MARKER],
-	RESPONSE_MARKER: [],
-	}
-	
-var regex = RegEx.new()
-var response_format = "\"([^\"]+)\"\\s*(\\{[^\\}]+\\})"
-var locator = {}
-var script_type 
-var current_type: String = ""
-var current_vibe: String = ""
-var current_mode: String = ""
-var current_section: String = ""
+var line_regex = RegEx.new()
+var meta_data_regex = RegEx.new()
+var intent_regex = RegEx.new()
+var _lexer = Lexer.new()
+var _validator = Validator.new()
+var locator: Dictionary = {}
+var script_type: int
 var current_locator_pointer: String = ""
-var _on_npc_line: bool = false
-var _line_num: int = 0
-var _current_level
-var _to_skip: Array = []
-var _valid: bool = false
-var current_choice: Dictionary =  {"line": "", "responses": []}
-var section_data: Array
+var current_line: String = ""
+var current_intent: int
+var current_responses: Array = []
 
-func validate_dialogue_file(file_path: String) -> Array:
-	regex.compile(response_format)
-	_valid = false
-	_line_num = 0
-	current_type = ""
-	current_vibe = ""
-	current_mode = ""
-	current_section = ""
-	var stack_check = []
-	var file = FileAccess.open(file_path, FileAccess.READ)
-	if file == null:
-		push_error("Could not open file: %s" % file_path)
-		stack_check.append(false)
-		assert(stack_check.has(false) == false, "Unable to parse pool script due to errors")
-	var lines = file.get_as_text().split("\n")
-	file.close()
+class NPC_line:
+	var line
+	var intent
+	var responses
+	func _init(line: String,intent: int,responses: Array):
+		self.line = line
+		self.intent = intent
+		self.responses = responses
+
+class Response:
+	var text
+	var condition
+	var condition_type
+	var effect
+	var intent
+	var tag
+	func _init(text: String, condition: String, condition_type: String, effect: String, intent: int, tag: String):
+		self.text = text
+		self.condition = condition
+		self.condition_type = condition_type
+		self.effect = effect
+		self.intent = intent
+		self.tag = tag
+
+func parse_tokens(tokens: Array) -> Array:
+	locator = {}
+	script_type 
+	current_locator_pointer= ""
+	current_line= ""
+	current_intent = -1
+	current_responses= []
+	line_regex.compile(_validator.line_format)
+	meta_data_regex.compile(_validator.meta_data_format)
+	intent_regex.compile(_validator.intent_format)
+	var section_data: Array = []
+	var current_type: String = ""
+	var current_vibe: String = ""
+	var current_mode: String = ""
+	var current_section: String = ""
 	
-	for line in lines:
-		_line_num += 1
-		var bare_line = line.strip_edges()
-		if bare_line.begins_with(COMMENT_MARKER) or bare_line.is_empty():
-			continue
-		bare_line = inline_comments_check(bare_line)
-		
-		if bare_line.begins_with(POOL_MARKER):
-			_valid = _check_pool_type(bare_line)
-			stack_check.append(_valid)
-		elif bare_line.begins_with(TYPE_MARKER):
-			_to_skip = []
-			_valid = _check_event_type(bare_line)
-			stack_check.append(_valid)
-		elif bare_line.begins_with(VIBE_MARKER):
-			if VIBE_MARKER in _to_skip:
-				continue
-			else:
-				_to_skip = []
-				_valid = _check_vibe(bare_line)
-				stack_check.append(_valid)
-		elif bare_line.begins_with(MODE_MARKER):
-			if MODE_MARKER in _to_skip:
-				continue
-			else:
-				_to_skip = []
-				_valid = _check_mode(bare_line)
-				stack_check.append(_valid)
-		elif bare_line.begins_with(SECTION_MARKER):
-			if SECTION_MARKER in _to_skip:
-				continue
-			else:
-				_to_skip = []
-				_valid = _check_section(bare_line)
-				stack_check.append(_valid)
-		elif bare_line.begins_with(NPC_LINE_MARKER):
-			if NPC_LINE_MARKER in _to_skip:
-				continue
-			else:
-				_to_skip = []
-				_valid = _check_npc_line(bare_line)
-				stack_check.append(_valid)
-		elif bare_line.begins_with(RESPONSE_MARKER):
-			if RESPONSE_MARKER in _to_skip:
-				continue
-			else:
-				_to_skip = []
-				_valid = _check_responses(bare_line)
-				stack_check.append(_valid)
-		else:
-			push_error("Unrecognized line beginning on line %d"%_line_num)
-			_move_till_next_top()
-			stack_check.append(false)
-		if current_choice["line"] != "" or current_choice["responses"].size() > 0:
-			section_data.append(current_choice)
-	assert(stack_check.has(false) == false, "Unable to parse pool script due to errors")
+	for token in tokens:
+		match token.marker:
+			Lexer.POOL_MARKER:
+				match token.value:
+					"EVENT":
+						script_type = NpcDialogue.PoolType.EVENT
+					"NPC":
+						script_type = NpcDialogue.PoolType.NPC
+			Lexer.TYPE_MARKER:
+				_store_line()
+				section_data = []
+				current_type= ""
+				current_vibe = ""
+				current_mode= ""
+				current_section= ""
+				current_type = token.value
+			Lexer.VIBE_MARKER:
+				_store_line()
+				current_vibe = token.value
+			Lexer.MODE_MARKER:
+				_store_line()
+				current_mode = token.value
+			Lexer.SECTION_MARKER:
+				_store_line()
+				current_section = token.value
+				current_section = current_section.strip_edges()
+				var parts = [current_type,current_vibe,current_mode,current_section]
+				var SEPARATOR = _lexer.SEPARATOR
+				current_locator_pointer = SEPARATOR.join(parts)
+				locator[current_locator_pointer] = []
+			Lexer.NPC_LINE_MARKER:
+				_store_line()
+				var data = _parse_npc_line(token)
+				current_line = data[0]
+				current_intent = data[1]
+			Lexer.RESPONSE_MARKER:
+				var response = _parse_response(token)
+				current_responses.append(response)
+		if token == tokens[-1]:
+			_store_line()
 	return [locator,script_type]
 
-#func get_indent(line: String) -> int:
-	#var count = 0
-	#for c in line:
-		#if c == " " or c == "\t":
-			#count += 1
-		#else:
-			#break
-	#return count
+func _store_line():
+	if current_line != "":
+		var npc_line = NPC_line.new(current_line,current_intent,current_responses)
+		locator[current_locator_pointer].append(npc_line)
+		current_line = ""
+		current_intent = -1
+		current_responses = []
 
-func _check_pool_type(line: String):
-	var name = line.trim_prefix(POOL_MARKER)
-	match name:
-		"EVENT":
-			script_type = NpcDialogue.PoolType.EVENT
-			locator= {}
-		"NPC":
-			script_type = NpcDialogue.PoolType.NPC
-			locator= {}
-		_:
-			push_error("Invalid Pool Type, should be EVENT or NPC")
-			return false
-	return true
+func _parse_npc_line(token: Lexer.Token) -> Array:
+	var line = token.value
+	var found = line_regex.search(line)
+	var text = found.get_string(1)
+	var meta_raw = found.get_string(2)
+	var meta_found = intent_regex.search(meta_raw)
+	var intent = ""
+	if meta_found != null:
+		intent =  meta_found.get_string(1)
+	match intent:
+		"":
+			intent = NpcDialogue.intent_commands.keep_topic
+		"keep_topic":
+			intent = NpcDialogue.intent_commands.keep_topic
+	return [text,intent]
 
-func _check_event_type(line: String):
-	current_type = ""
-	current_vibe = ""
-	current_mode = ""
-	current_section = ""
-	_on_npc_line = false
-	_current_level = TYPE_MARKER
-	var name = line.trim_prefix(TYPE_MARKER).strip_edges()
-	match script_type:
-		NpcDialogue.PoolType.EVENT:
-			if name not in NpcManager._event_types:
-				push_error("Invalid Pool type on line %d. see NpcManager.get_event_types() " %_line_num)
-				_move_till_next_top()
-				return false
-			else:
-				_current_level = VIBE_MARKER
-				current_type = name
-				return true
-		NpcDialogue.PoolType.NPC:
-			if name not in NpcManager._relationship_types:
-				push_error("Invalid Relationship Type on line %d. see NpcManager.get_event_types() " %_line_num)
-				_move_till_next_top()
-				return false
-			else:
-				_current_level = VIBE_MARKER
-				current_type = name
-				return true
-		_:
-			push_error("Invalid Pool Type, should be EVENT or NPC")
-			return false
-
-func _check_vibe(line: String):
-	current_vibe = ""
-	if current_type == "":
-		push_error("No _valid Pool type to place Descriptor under on line %d"%_line_num)
-		_move_till_next_top()
-		return false
-		
-	var name = line.trim_prefix(VIBE_MARKER).strip_edges()
-	if name not in NpcDialogue.Vibe.keys():
-		push_error("In_valid Emotional Descriptor on line %d" %_line_num)
-		_move_till_next_top()
-		return false
-	else:
-		_current_level = MODE_MARKER
-		current_vibe = name
-		return true
-
-func _check_mode(line: String):
-	current_mode = ""
-	if current_vibe == "":
-		push_error("No valid Emotional Descriptor to place Context under on line %d"%_line_num)
-		_move_till_next_top()
-		return false
-	var name = line.trim_prefix(MODE_MARKER).strip_edges()
-	if name not in NpcDialogue.PoolContext.keys():
-		push_error("Invalid Pool Context on line %d" %_line_num)
-		_move_till_next_top()
-		return false
-	else:
-		_current_level = SECTION_MARKER
-		current_mode = name
-		return true
-
-func _check_section(line: String):
-	current_section = ""
-	if current_mode == "":
-		push_error("No valid Emotional Descriptor  to place Context under on line %d"%_line_num)
-		_move_till_next_top()
-		return false
-	var name = line.trim_prefix(SECTION_MARKER).strip_edges()
-	current_section = name
-	_current_level = NPC_LINE_MARKER
-	var locator_name = current_type + SEPARATOR + current_vibe + SEPARATOR + current_mode + SEPARATOR + name
-	current_locator_pointer = locator_name
-	current_choice = {"line": "", "responses": []}
-	locator[current_locator_pointer] = []
-	section_data = locator[current_locator_pointer]
-	return true
-
-func _check_npc_line(line: String):
-	_on_npc_line = false
-	if current_section == "":
-		push_error("No valid Section to place Context under on line %d"%_line_num)
-		_move_till_next_top()
-		return false
-	var text = line.trim_prefix(NPC_LINE_MARKER).strip_edges()
-	if not text.begins_with("\"") or not text.ends_with("\""):
-		push_error("NPC line must be contained in qoutes with no other statements, line %d"%_line_num)
-		_move_till_next_top()
-		return false
-	else:
-		_current_level = RESPONSE_MARKER
-		_on_npc_line = true
-		text = text.trim_prefix("\"")
-		text = text.trim_suffix("\"")
-		current_choice["line"] = text
-		return true
-
-func _check_responses(line: String):
-	if _on_npc_line:
-		var check_text = line.trim_prefix(RESPONSE_MARKER).strip_edges()
-		var check = validate_response_format(check_text)
-		if check:
-			return true
-		else:
-			_move_till_next_top()
-	else:
-		push_error("No NPC Line to put Pos Responses under, line %d"%_line_num)
-		_move_till_next_top()
-	return false
-
-func validate_response_format(line: String) -> bool:
-	var response = {}
-	var text
-	var meta_raw
-	var found = regex.search(line)
-	if found == null:
-		return false
-	text = found.get_string(1)
-	meta_raw = found.get_string(2)
-	response["condition"] = "None"
-	response["condition_type"] = "None"
-	response["effect"] = "None"
-	response["tag"] = "None"
-	response["text"] = "None"
-	
-	var meta = JSON.parse_string(meta_raw)
-	if meta == null:
-		push_error("Invalid Meta Data Formating on Line %d"%_line_num)
-		return false
-	response["text"] = text
-	if meta.has("condition"):
-		response["condition"] = meta.condition
-	if meta.has("condition_type"):
-		response["condition_type"] = meta.condition_type
-	if meta.has("effect"):
-		response["effect"] = meta.effect
-	if meta.has("tag"):
-		response["tag"] = meta.tag
-	
-	current_choice["responses"].append(response)
-	return true
-
-func _move_till_next_top():
-	var current = _current_level
-	_to_skip = hierarchy[current]
-
-func inline_comments_check(line: String) -> String:
-	var quotes_stack = 0
-	for i in range(line.length()):
-		if line[i] == '"':
-			quotes_stack += 1 
-		if quotes_stack == 2:
-			quotes_stack = 0
-		elif line[i] == COMMENT_MARKER and quotes_stack == 0:
-			line = line.substr(0,i)
-	if quotes_stack != 0:
-		push_error("Uneven number of qoutations in line %d"%_line_num)
-	return line
+# all meta data fields default to "None" if empty or invalid (not in qoutes)
+func _parse_response(token: Lexer.Token) -> Response:
+	var line = token.value
+	var found = line_regex.search(line)
+	var text = found.get_string(1)
+	var condition = "None"
+	var condition_type = "None"
+	var effect = "None"
+	var tag = "None"
+	var intent = NpcDialogue.intent_commands.keep_topic
+	var meta_raw = found.get_string(2)
+	var meta_found = meta_data_regex.search_all(meta_raw)
+	for meta in meta_found:
+		match meta.get_string(1):
+			"condition":
+				condition = meta.get_string(2)
+			"condition_type":
+				condition_type = meta.get_string(2)
+			"effect":
+				effect = meta.get_string(2)
+			"tag":
+				tag = meta.get_string(2)
+			"intent":
+				var value = meta.get_string(2)
+				match value:
+					"":
+						intent = NpcDialogue.intent_commands.keep_topic
+					"keep_topic":
+						intent = NpcDialogue.intent_commands.keep_topic
+	var response = Response.new(text,condition,condition_type,effect,intent,tag)
+	return response

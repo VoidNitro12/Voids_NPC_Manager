@@ -11,9 +11,8 @@ extends Node
 ## DETACHED = unfriendly,neutral expressiveness, neutral curiosity and neutral patience. [br]
 ## TERSE = neutraly friendly, not expressive, not curious and not patient. [br]
 enum Vibe {WARM, GENTLE, COLD, HOSTILE, DISTANT, EAGER, DETACHED, TERSE}
-# Note. its Just for reference, in the keys the enum descriptor is not used in dialogue.gd
 
-## For the Type of pool the manager should pool from, [br]
+## For the Type of pool the manager should pull from, [br]
 ## EVENT = Event pool. [br]
 ## NPC = NPC pool. [br]
 ## GENERIC = Generic pool when not specifically talking about an Event or NPC, Is an event of type [code]default_convo[/code] and id [code]"0"[/code]
@@ -38,7 +37,6 @@ enum DialogueConditionType {
 	CUSTOM
 	}
 
-
 const _RANGES = {
 	"high": [60,100],
 	"neutral": [40,60],
@@ -57,12 +55,14 @@ const VIBE_TEMPLATES = [
 	{ "name": Vibe.DETACHED, "friendliness":["low"], "expressiveness":["neutral","low"], "patience":["neutral"], "curiosity":["neutral"]}
 ]
 
-var parser = DialogueCache.new()
+enum intent_commands {keep_topic}
+
+var request = DialogueCache.new()
 
 # formats a given line by swapping key strings with their information counterparts.
 # all dialouge event templates should have keys such as {npc1}. corresponding to the event type
 # where {npc1} is a valid field in the provided event_type that will also contain a string if filled. 
-func _dialogue_event_format(event: Resource, line: String) -> String:
+func _dialogue_event_format(event: EventData, line: String) -> String:
 	var all_fields = {
 		"name": event.event_name,
 		"where": event.where,
@@ -77,7 +77,7 @@ func _dialogue_event_format(event: Resource, line: String) -> String:
 			line = line.replace(formated_key,all_fields[key])
 	return line
 
-func _check_str_condition(condition: String, npc: Resource ):
+func _check_str_condition(condition: String, npc: NpcData ):
 	var conditions = NpcManager.dialogue_conditions
 	var result
 	if conditions.has(condition):
@@ -99,7 +99,7 @@ func _dialogue_char_format(sel_char_type: String, line: String) -> String:
 		line = line.replace(formated_char,sel_char_type)
 	return line
 
-func _apply_mood(npc: Resource, npc_id: String) -> Resource:
+func _apply_mood(npc: NpcData, npc_id: String) -> NpcData:
 	var file_name = "NPC_%s.tres" %npc_id
 	var save_path = NpcManager.npc_path + file_name
 	var traits = ["friendliness", "expressiveness", "patience", "curiosity"]
@@ -115,7 +115,7 @@ func _vibe_band(value: int, range: String) -> bool:
 	var bounds = _RANGES[range]
 	return value <= bounds[1] and value >= bounds[0]
 
-func _vibe_map(npc: Resource):
+func _vibe_map(npc: NpcData):
 	var traits = {
 		"friendliness": npc.friendliness,
 		"expressiveness": npc.expressiveness,
@@ -140,7 +140,7 @@ func _vibe_map(npc: Resource):
 	push_warning("No match found, using default of Distant")
 	return Vibe.DISTANT
 
-func _query_event(event_id: String, npc: Resource, vibe: String, context: String, section: String) -> Array:
+func _query_event(event_id: String, npc: NpcData, vibe: String, context: String, section: String) -> Array:
 	var event = NpcManager.get_event(event_id)
 	var pool
 	var event_type = event.type
@@ -148,30 +148,29 @@ func _query_event(event_id: String, npc: Resource, vibe: String, context: String
 	if event_id in npc.direct_events:
 		prefix = "direct"
 		section = prefix + "_" + section
-		pool = parser.pool_request(PoolType.EVENT,event_type,vibe,context,section)
+		pool = request.pool_request(PoolType.EVENT,event_type,vibe,context,section)
 	elif  event_id in npc.indirect_events:
 		prefix = "indirect"
 		section = prefix + "_" + section
-		pool = parser.pool_request(PoolType.EVENT,event_type,vibe,context,section)
+		pool = request.pool_request(PoolType.EVENT,event_type,vibe,context,section)
 	else:
-		pool = parser.pool_request(PoolType.EVENT,"UNAWARE",vibe,context,section)
+		pool = request.pool_request(PoolType.EVENT,"UNAWARE",vibe,context,section)
 	return [pool,event]
 
-func _query_char(char_id: String, npc: Resource, vibe: String, context: String, section: String) -> Array:
+func _query_char(char_id: String, npc: NpcData, vibe: String, context: String, section: String) -> Array:
 	var target = NpcManager.get_npc(char_id)
 	var pool
 	var rel_type
 	if npc.relationships.has(char_id):
 		rel_type = npc.relationships[char_id].type
-		pool = parser.pool_request(PoolType.NPC,rel_type,vibe,context,section)
+		pool = request.pool_request(PoolType.NPC,rel_type,vibe,context,section)
 	else:
 		rel_type = "UNAWARE"
-		pool = parser.pool_request(PoolType.NPC,rel_type,vibe,context,section)
+		pool = request.pool_request(PoolType.NPC,rel_type,vibe,context,section)
 	
 	return [pool,rel_type]
 
 # friendliness,curiosity,patience,expressiveness and mood do value checks only (<,>,=)
-# relationship also only does value checks with npc.relationship.value
 # direct_events and indirect_events do dict checks only 
 func _condition_check(condition: String,npc: Resource, condition_type: String):
 	var expression = Expression.new()
@@ -210,6 +209,29 @@ func _condition_check(condition: String,npc: Resource, condition_type: String):
 	result = expression.execute(execution_variable)
 	return result
 
+func _choose_line_obj(pool: Array) -> Parser.NPC_line:
+	if pool.is_empty():
+		return null
+	var line_choice_index = randi() % pool.size()
+	var line_obj = pool[line_choice_index]
+	return line_obj
+
+func _check_all_conditions(responses: Array, npc: NpcData) -> Array:
+	var pos_responses = []
+	if responses.is_empty():
+		return []
+	for response in responses:
+		var condition = response.condition
+		var condition_type = response.condition_type
+		var result
+		if condition_type != "None" and condition != "None":
+			result = _condition_check(condition,npc,condition_type)
+			if result:
+				pos_responses.append(response)
+		elif condition == "None":
+			pos_responses.append(response)
+	return pos_responses
+
 ## Core dialouge mechanic. passing this will initiate one round of conversation with an npc.
 ## Meaning if more than one exchange is needed this should be called in an appropriate chaining system.[br]
 ## Takes a Dialogue Request object.[br]
@@ -217,14 +239,22 @@ func _condition_check(condition: String,npc: Resource, condition_type: String):
 ## var request = DialogueRequest.new()
 ##	request.npc = npc # A valid NPC resource of the NPC being spoken to
 ##	request.pool_type = NpcDialogue.PoolType.GENERIC # Default if not takin about a specific NPC or Event
-##	request.char_id = "" # Default if not talking about a specific Npc
+##	request.char_id = "" # Default if not talking about a specific NPC
 ##	request.event_id = "0" # Default if not talking about any event
 ##	request.context = NpcDialogue.PoolContext.REACTIVE
 ## talk_to_npc(request)
 ## [/codeblock]
 ## Returns a An Array containing a String of dialouge selected from a dialogue pool about characters and events, As well as an array of
 ## potential responses that exist.[br]
-func talk_to_npc(request: Resource) -> Array:
+## # Note: Potentential responses returned by this function is an array of objects of Class Parser.Response, each object contains. [br[
+## [codeblock]
+##	response.text # What the response is
+##	response.condition # What needs to true for this choice to be available. (only responses that have this checked as true are actually sent)
+##	response.condition_type # Type of condition
+##	response.effect # What happens if this option is chosen (not handled by the manager)
+##	response.tag # tag for the next chain of dialogue. TODO
+## [/codeblock]
+func talk_to_npc(request: DialogueRequest) -> Array:
 	var npc_id = request.npc 
 	var pool_type = request.pool_type
 	var event_id = request.event_id
@@ -249,45 +279,54 @@ func talk_to_npc(request: Resource) -> Array:
 			pool = data[0]
 			var event_resource = data[1]
 			
-			var chosen_index = randi() % pool.size()
-			var pool_dict = pool[chosen_index]
-			chosen_line = pool_dict.line
+			var line_obj = _choose_line_obj(pool)
+			
+			chosen_line = line_obj.line
+			var responses = line_obj.responses
 			
 			chosen_line = _dialogue_event_format(event_resource, chosen_line)
-			for response in pool_dict.responses:
-				var condition = response.condition
-				var condition_type = response.condition_type
-				var result
-				if condition_type != "None" and condition != "None":
-					result = _condition_check(condition,npc,condition_type)
-					if result:
-						pos_responses.append(response)
-				else:
-					pos_responses.append(response)
+			pos_responses = _check_all_conditions(responses,npc)
 		PoolType.NPC:
 			data = _query_char(char_id,npc,vibe,context,section)
 			pool = data[0]
 			var npc_resource = data[1]
 			
-			var chosen_index = randi() % pool.size()
-			var pool_dict = pool[chosen_index]
-			chosen_line = pool_dict.line
+			var line_obj = _choose_line_obj(pool)
+			
+			chosen_line = line_obj.line
+			var responses = line_obj.responses
 			
 			chosen_line = _dialogue_char_format(npc_resource, chosen_line)
-			for response in pool_dict.responses:
-				var condition = response.condition
-				var condition_type = response.condition_type
-				var result
-				if condition_type != "None" and condition != "None":
-					result = _condition_check(condition,npc,condition_type)
-					if result:
-						pos_responses.append(response)
-				else:
-					pos_responses.append(response)
+			pos_responses = _check_all_conditions(responses,npc)
+		PoolType.GENERIC:
+			#TODO
+			data = _query_event("0", current_npc,vibe,context,section)
+			pool = data[0]
+			pass
 		_:
 			push_error("Invalid PoolType see NpcDialogue.PoolType")
 	
 	if chosen_line.contains("{player0}"): 
 		var player_name = NpcManager.player_data.player_name
 		chosen_line = chosen_line.replace("{player0}",player_name)
-	return [chosen_line,pos_responses]
+	return [chosen_line,pos_responses,npc]
+
+class Conversation:
+	var npc: NpcData
+	var current_pool: Array
+	var current_line: String
+	
+	func start(request: DialogueRequest):
+		var result = NpcDialogue.talk_to_npc(request)
+		current_line = result[0]
+		current_pool = result[1]
+		npc = result[2]
+	
+	func next(chosen_line: Parser.Response):
+		var request = DialogueRequest.new()
+		request.npc = npc.npc_id
+		request.pool_type = chosen_line.type
+		request.context = NpcDialogue.PoolContext.ONGOING
+		request.event_id
+		request.char_id
+		request.section = chosen_line.tag

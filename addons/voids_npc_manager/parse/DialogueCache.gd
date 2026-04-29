@@ -2,14 +2,22 @@
 class_name DialogueCache
 var _pool_event_locator
 var _pool_character_locator
-var _validator = Parser.new()
+var _lexer = Lexer.new()
+var _validator = Validator.new()
+var _parser = Parser.new()
 var _dialogue_store = ScriptData.new()
 var _script_data_path = "res://addons/voids_npc_manager/parse/ScriptData.tres"
 
 func parse_pool(file_path: String):
-	var script = _validator.validate_dialogue_file(file_path)
+	var tokens = _lexer.tokenize(file_path)
+	var valid = _validator.token_validation(tokens)
+	var script 
+	if valid:
+		script = _parser.parse_tokens(tokens)
+	else:
+		push_error("Unable to parse script due to errors")
+		return
 	var locator = script[0]
-	print(locator)
 	var type = script[1]
 	match type:
 		NpcDialogue.PoolType.EVENT:
@@ -49,6 +57,8 @@ func pool_request(pool_type: int, field: String, vibe: String, context: String, 
 	var result = []
 	var target_parts = [field,vibe,context,section]
 	var target = _make_locator_target(target_parts)
+	if locator == null:
+		return []
 	var has_target = locator.has(target)
 	if not has_target :
 		push_error("target not found in pool, target: %s"%target)
@@ -89,7 +99,7 @@ func _check_fields(pool_type: int, field: String,vibe: String) -> bool:
 	return true
 
 func _make_locator_target(parts: Array) -> String:
-	var SEPARATOR = _validator.SEPARATOR
+	var SEPARATOR = _lexer.SEPARATOR
 	return SEPARATOR.join(parts)
 
 func _load_pools():

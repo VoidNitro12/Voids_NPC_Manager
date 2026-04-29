@@ -17,8 +17,8 @@ extends Resource
 @export var curiosity: int = 0
 @export var mood: int = 0
 @export var personality_range: int = 0
-var direct_events: Dictionary= {}
-var indirect_events: Dictionary= {}
+var direct_events: Dictionary = {}
+var indirect_events: Dictionary = {}
 @export var relationships: Dictionary = {}
 
 func create(npc_info: Dictionary, id: String):

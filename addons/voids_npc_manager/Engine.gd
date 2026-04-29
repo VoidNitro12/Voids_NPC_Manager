@@ -6,7 +6,8 @@ extends Node
 # Minimum version the plugin accepts for old plugin saves
 const _MINIMUM_VERSION = "0.2.3"
 
-const _plugin_version = "0.3.0-alpha3"
+# Current plugin version
+const _plugin_version = "0.3.0-alpha4"
 
 ## Path where all NPC's will be stored. see [method set_npc_saves] to change it.[br]
 ## By default it is set to: [code] "res://addons/voids_npc_manager/NPCs/" [/code]
@@ -227,8 +228,8 @@ func add_event(event_info: Dictionary, event_type_data: Array, involve_player : 
 ##	"curiosity": 30,
 ##	"mood": 50,
 ##	"personality_range": 20,
-##	"direct_events": [],
-##	"indirect_events": [],
+##	"direct_events": {},
+##	"indirect_events": {},
 ##	}
 ## add_npc(new_npc)
 ##[/codeblock]

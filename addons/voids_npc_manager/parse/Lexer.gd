@@ -4,25 +4,26 @@ const POOL_MARKER = "@"
 const TYPE_MARKER = "~"
 const VIBE_MARKER = "/"
 const MODE_MARKER = "*"
-const SECTION_MARKER = "section"
+const SECTION_MARKER = "section "
 const NPC_LINE_MARKER = "-"
 const RESPONSE_MARKER = ">"
 const SEPARATOR = "^"
 const COMMENT_MARKER = "#"
+const INVALID_MARKER = "Invalid"
+
+var _line_num: int = 0
 
 class Token:
 	var marker: String
 	var value: String
 	var line_num: int
-	
 	func _init(marker: String, value: String, line_num: int):
 		self.marker = marker
 		self.value = value
 		self.line_num = line_num
 
-var _line_num: int = 0
-
 func tokenize(file_path: String) -> Array:
+	_line_num = 0
 	var file = FileAccess.open(file_path, FileAccess.READ)
 	if file == null:
 		push_error("Could not open file: %s" % file_path)
@@ -39,7 +40,8 @@ func tokenize(file_path: String) -> Array:
 
 		if bare_line.begins_with(COMMENT_MARKER) or bare_line.is_empty():
 			continue
-		
+		bare_line = bare_line.strip_edges()
+		bare_line = inline_comments_check(bare_line)
 		if bare_line.begins_with(POOL_MARKER):
 			marker = POOL_MARKER
 			value = bare_line.trim_prefix(marker)
@@ -69,7 +71,23 @@ func tokenize(file_path: String) -> Array:
 			value = bare_line.trim_prefix(marker)
 			tokens.append(Token.new(marker,value,_line_num))
 		else:
-			push_error("Unrecognized line beginning on line %d"%_line_num)
-			continue
-		
+			marker = INVALID_MARKER
+			value =  bare_line
+			tokens.append(Token.new(marker,value,_line_num))
 	return tokens
+
+func inline_comments_check(line: String) -> String:
+	var quotes_stack = 0
+	var cut_pos = -1
+	if line.find(COMMENT_MARKER) != -1:
+		for i in range(line.length()):
+			if line[i] == '"':
+				quotes_stack += 1 
+			if quotes_stack == 2:
+				quotes_stack = 0
+			elif line[i] == COMMENT_MARKER and quotes_stack == 0:
+				cut_pos = i
+				break
+		if cut_pos != -1:
+			line = line.substr(0,cut_pos).rstrip(" ")
+	return line
